@@ -1,0 +1,1518 @@
+version: "1.2"
+name: "PromptWars Cheat Sheet Workflow"
+description: "Converts a raw problem statement into a focused, execution-ready hackathon project plan using the PromptWars winning formula."
+
+# ============================================================================
+# METADATA
+# ============================================================================
+metadata:
+  mode: "model-agnostic"
+  intent: "reliable structured planning"
+  notes:
+    - "No task is tied to a specific model or provider."
+    - "All prompt tasks must return valid JSON only unless explicitly marked as markdown."
+    - "If a task fails validation, retry once with a stricter instruction to return schema-compliant output."
+    - "Scores should reflect an honest assessment of the current plan quality, from 1 (very poor) to 10 (excellent)."
+
+# ============================================================================
+# SYSTEM CONTEXT
+# ============================================================================
+system_context: |
+  You are an expert hackathon project architect using the PromptWars winning formula.
+  Apply the 8 winning principles: Focus, Hybrid Architecture, Context Injection,
+  Google Integration, Security, UX, Iteration, Accessibility.
+  Leverage specialized designer/developer skills such as `frontend-design`, `ui-ux-pro-max`,
+  `modern-web-guidance`, and `find-skills` to elevate the UI and overall project execution.
+  Avoid the "fluent trap": do not propose 5 shallow ideas when 1 deep solution is needed.
+  Prefer concrete tradeoffs, realistic implementation plans, and execution-ready outputs.
+  Unless explicitly asked otherwise, return only the requested format with no extra commentary.
+  Be specific. Generic advice is useless in a hackathon. Provide actionable recommendations.
+  Remember: The "Fluent trap" is solving 5 problems shallowly. Enforce laser focus.
+
+# ============================================================================
+# WORKFLOW RULES
+# ============================================================================
+workflow_rules:
+  - "Prefer one primary persona and one primary user journey."
+  - "Flag scope creep early and block forward progress until resolved."
+  - "Separate deterministic logic from AI-assisted logic at the feature level."
+  - "Recommend platform services only when they materially improve the solution."
+  - "Treat security and accessibility as build requirements, not polish."
+  - "Scores must reflect honest assessment (1-10), not placeholder values."
+
+# ============================================================================
+# STAGE 1: PROBLEM INTAKE & CLARIFICATION
+# ============================================================================
+stages:
+  - stage_id: "intake"
+    name: "Problem Statement Intake"
+    description: "Parse, bound, decompose, and research-ground the problem before any architecture work begins."
+    next_stage: "principle_analysis"
+
+    tasks:
+      - task_id: "parse_problem"
+        name: "Parse Problem Statement"
+        type: "prompt"
+        input_variables:
+          - problem_statement
+          - context
+          - constraints
+        output_format: "json"
+        validation:
+          required_keys:
+            - core_problem
+            - user_personas
+            - primary_user
+            - impact
+            - scope_risk
+            - scope_feedback
+            - recommended_focus
+            - niche_skills_needed
+            - design_opportunity
+            - decomposed_subparts
+
+        prompt_template: |
+          Problem Statement: {problem_statement}
+          Additional Context: {context}
+          Constraints: {constraints}
+
+          Extract and structure:
+          1. Core Problem (1 sentence)
+          2. Primary User Persona & Primary Journey
+          3. User personas affected
+          4. Why is this important? (Impact)
+          5. Scope Risk: Is it too broad?
+          6. Recommended Focus: The ONE core user flow.
+          7. Niche Requirements: Do we need specific domain skills? (e.g. web3, hardware, clinical-trials)
+          8. Design Opportunity: What's the visual/UX 'wow' moment?
+          9. Decomposed Subparts: Breakdown of the core solution into distinct, verifiable elements.
+
+          Return valid JSON only:
+          {{
+            "core_problem": "...",
+            "primary_user": "persona description",
+            "user_personas": ["...", "..."],
+            "impact": "...",
+            "scope_risk": "too_broad|focused|unclear",
+            "scope_feedback": "...",
+            "recommended_focus": "...",
+            "niche_skills_needed": ["list of skills or none"],
+            "design_opportunity": "visual opportunity description",
+            "decomposed_subparts": [
+              {{
+                "subpart_id": "sp1",
+                "name": "Subpart Name",
+                "description": "What needs to be achieved?",
+                "verification": "How do we verify it?"
+              }}
+            ]
+          }}
+
+        output_variable: "parsed_problem"
+
+      - task_id: "scope_check"
+        name: "Scope Risk Assessment"
+        type: "conditional"
+        # NOTE: triggers for both 'too_broad' and 'unclear' - not just 'too_broad'
+        condition: "parsed_problem.scope_risk != 'focused'"
+
+        on_true:
+          - action: "output_warning"
+            message: "⚠️ SCOPE RISK DETECTED: Your problem is too broad or unclear. You'll end up with 5 half-baked solutions. REFOCUS on ONE core user journey before proceeding."
+          - action: "collect_refined_input"
+            output_variable: "refined_problem_statement"
+            prompt: "Rewrite the problem in one sentence focused on a single user, single pain point, and single core outcome."
+          - action: "update_variable"
+            # CRITICAL FIX from 1.1: ensure all downstream stages use the refined statement
+            target: "parsed_problem.core_problem"
+            source: "refined_problem_statement"
+
+        on_false:
+          - action: "proceed"
+
+      - task_id: "extract_research_keywords"
+        name: "Extract & Expand Research Keywords"
+        type: "prompt"
+        input_variables:
+          - problem_statement
+          - parsed_problem
+          - context
+        output_format: "json"
+        validation:
+          required_keys:
+            - primary_keywords
+            - secondary_keywords
+            - tertiary_keywords
+            - researcher_names
+            - dataset_names
+            - search_queries
+            - domain_subcategories
+        prompt_template: |
+          Problem Statement: {problem_statement}
+          Parsed Problem: {parsed_problem}
+          Additional Context: {context}
+
+          Extract and expand keywords for research paper search:
+
+          1. PRIMARY keywords (directly from problem)
+          2. SECONDARY keywords (related concepts)
+          3. TERTIARY keywords (adjacent fields that might have solutions)
+          4. AUTHOR names (known researchers in this space)
+          5. DATASET names (standard benchmarks used in research)
+
+          Return valid JSON only:
+          {{
+            "primary_keywords": ["keyword1", "keyword2"],
+            "secondary_keywords": ["keyword1", "keyword2"],
+            "tertiary_keywords": ["keyword1", "keyword2"],
+            "researcher_names": ["Name1", "Name2"],
+            "dataset_names": ["Dataset1", "Dataset2"],
+            "search_queries": [
+              "Query for arXiv that would find most relevant papers",
+              "Another search query",
+              "A third variation"
+            ],
+            "domain_subcategories": ["subcat1", "subcat2"]
+          }}
+        output_variable: "research_keywords"
+
+      - task_id: "search_research_papers"
+        name: "Search Research Paper Databases"
+        type: "external_api"
+        input_variables:
+          - research_keywords
+        api_calls:
+          - source: "arXiv"
+            query_template: "{research_keywords.search_queries[0]}"
+            params:
+              sortBy: "relevance"
+              max_results: 10
+              start: 0
+
+          - source: "Semantic Scholar"
+            query_template: "{research_keywords.search_queries[1]}"
+            params:
+              limit: 10
+              fields: "title,abstract,year,authors,citationCount"
+
+          - source: "Papers with Code"
+            query_template: "{research_keywords.search_queries[2]}"
+            params:
+              limit: 5
+              sort: "trending"
+        post_processing: |
+          1. Deduplicate papers across sources
+          2. Rank by: recency (last 2 years), citation count, implementation availability
+          3. Return top 3 papers per domain subcategory
+          4. Extract: title, abstract, authors, year, DOI, code availability
+        output_variable: "research_papers"
+
+      - task_id: "analyze_research_gaps"
+        name: "Analyze Research Gaps"
+        type: "prompt"
+        input_variables:
+          - research_papers
+          - parsed_problem
+        output_format: "json"
+        validation:
+          required_keys:
+            - paper_summaries
+            - identified_gaps
+            - top_6_gaps_ranked
+        prompt_template: |
+          Research Papers Found: {research_papers}
+          Parsed Problem: {parsed_problem}
+
+          Analyze papers for research gaps that can be solved and verified task-wise:
+
+          For each paper, extract:
+          1. Main contribution (what did they solve?)
+          2. Stated limitations (what they admit they can't do)
+          3. Future work (what they suggest next)
+          4. Performance gaps (where do they fall short vs. SOTA?)
+          5. Real-world blockers (deployment challenges, dataset scarcity, etc.)
+
+          Then identify 5-6 feasible gaps that:
+          - Are mentioned in 2+ papers as limitations
+          - Can be broken down into modular, verifiable development tasks
+          - Would make a hackathon project stand out
+          - Have clear success metrics
+
+          Return valid JSON only:
+          {{
+            "paper_summaries": [
+              {{
+                "title": "Paper Title",
+                "year": 2024,
+                "main_contribution": "...",
+                "stated_limitations": ["limitation1", "limitation2"],
+                "future_work": ["suggested1", "suggested2"],
+                "performance_gaps": {{"metric": "gap"}},
+                "deployment_barriers": ["barrier1"]
+              }}
+            ],
+            "identified_gaps": [
+              {{
+                "gap_id": "gap_1",
+                "description": "What gap is this?",
+                "mentioned_by_papers": ["Paper Title 1", "Paper Title 2"],
+                "feasibility": "high|medium|low",
+                "complexity_rank": "high|medium|low",
+                "verification_complexity": "simple|complex",
+                "hackathon_suitability": "excellent|good|marginal",
+                "success_metrics": ["metric1", "metric2"]
+              }}
+            ],
+            "top_6_gaps_ranked": ["gap_1", "gap_2"]
+          }}
+        output_variable: "gap_analysis"
+
+      - task_id: "generate_research_bibtex"
+        name: "Generate BibTeX Citations"
+        type: "prompt"
+        input_variables:
+          - research_papers
+        prompt_template: |
+          Research Papers: {research_papers}
+
+          Generate a valid BibTeX citation block (.bib format) for all source papers.
+          Ensure proper citation keys, titles, authors, and year.
+
+          Return raw BibTeX text.
+        output_variable: "research_papers_bibtex"
+
+      - task_id: "generate_research_topics"
+        name: "Generate 3-4 Research-Backed Topics"
+        type: "prompt"
+        input_variables:
+          - gap_analysis
+          - parsed_problem
+          - constraints
+        output_format: "json"
+        validation:
+          required_keys:
+            - topics
+            - why_3_topics
+            - recommendation
+        prompt_template: |
+          Gap Analysis: {gap_analysis}
+          Parsed Problem: {parsed_problem}
+          Constraints: {constraints}
+
+          Create 3-4 project topics, each solving ONE specific research gap.
+          Decompose each topic's scope into verifiable subparts.
+
+          For each topic:
+          1. Clear problem statement (1 sentence, grounded in research gap)
+          2. Research justification (why papers identified this as important)
+          3. Novelty angle (how is your approach different from existing papers?)
+          4. MVP scope: Decomposed into a list of verifiable features/subparts.
+          5. Success metrics (how will judges measure success?)
+          6. Dataset/benchmark (what will you evaluate against?)
+          7. Tech stack (what tools for this specific problem?)
+          8. Risk assessment (what could go wrong?)
+
+          CRITICAL CONSTRAINT: Each topic solves ONE problem. No mixing.
+
+          Return valid JSON only:
+          {{
+            "topics": [
+              {{
+                "topic_id": "topic_1",
+                "title": "Catchy, research-backed title",
+                "problem_statement": "One sentence describing the gap from papers",
+                "research_gap": {{
+                  "source_papers": ["Paper1", "Paper2"],
+                  "why_it_matters": "Why researchers identified this",
+                  "current_limitation": "What existing work can't do"
+                }},
+                "your_approach": {{
+                  "novel_angle": "How you'll be different",
+                  "key_insight": "What makes this work better?",
+                  "compared_to_papers": "How you differ from [Paper1], [Paper2]"
+                }},
+                "mvp_features": [
+                  {{
+                    "feature_id": "f1",
+                    "name": "Feature Name",
+                    "subparts": ["subpart description 1", "subpart description 2"],
+                    "verification_method": "Detailed verification step or automated test for this feature"
+                  }}
+                ],
+                "success_metrics": {{
+                  "primary": "Main metric to optimize",
+                  "baseline_from_papers": "What did papers achieve?",
+                  "your_target": "What will you achieve?",
+                  "improvement": "% improvement vs. baseline"
+                }},
+                "dataset": {{
+                  "name": "Dataset name",
+                  "source": "Where to get it",
+                  "train_test_split": "How you'll use it"
+                }},
+                "tech_stack": {{
+                  "model_type": "What type of model?",
+                  "framework": "PyTorch/TF/etc",
+                  "training_hardware": "GPU/CPU requirements",
+                  "deployment": "How you'll demo it"
+                }},
+                "risks": [
+                  "Risk 1 + mitigation",
+                  "Risk 2 + mitigation"
+                ],
+                "feasibility_score": 8,
+                "novelty_score": 8,
+                "complexity": "low|medium|high"
+              }}
+            ],
+            "why_3_topics": "Here's why we picked these 3 specific gaps over the others",
+            "recommendation": "Topic X has the best feasibility, subpart clarity, and novelty combo"
+          }}
+        output_variable: "research_topics"
+
+# ============================================================================
+# STAGE 2: PRINCIPLE-BY-PRINCIPLE ANALYSIS
+# ============================================================================
+  - stage_id: "principle_analysis"
+    name: "Apply 8 Winning Principles"
+    description: "Analyze the problem using all 8 PromptWars winning principles."
+    next_stage: "project_planning"
+
+    tasks:
+      - task_id: "principle_1_focus"
+        name: "Principle 1: Laser Focus"
+        type: "prompt"
+        input_variables:
+          - parsed_problem
+        output_format: "json"
+        validation:
+          required_keys:
+            - primary_user_journey
+            - primary_persona
+            - primary_pain_point
+            - mvp_features
+            - scope_approved
+            - focus_score
+
+        prompt_template: |
+          Problem: {parsed_problem.core_problem}
+          User Personas: {parsed_problem.user_personas}
+
+          Principle 1: LASER FOCUS - Solve ONE problem deeply, not 5 problems shallowly
+
+          Answer these questions:
+          1. Can you describe the primary user journey in 5 steps?
+          2. Are you solving for one persona or multiple? (If multiple, how are they connected?)
+          3. What's the #1 pain point you're solving? (Not top 3, just #1)
+          4. If you remove features, what's the minimum viable solution?
+
+          Assign an honest focus_score from 1 (very scattered) to 10 (laser focused).
+
+          Return valid JSON only:
+          {{
+            "primary_user_journey": ["step1", "step2", "step3", "step4", "step5"],
+            "primary_persona": "...",
+            "primary_pain_point": "...",
+            "mvp_features": ["feature1", "feature2", "feature3"],
+            "scope_approved": true,
+            "focus_score": 7
+          }}
+
+        output_variable: "principle_1"
+
+      - task_id: "principle_2_hybrid"
+        name: "Principle 2: Hybrid Architecture"
+        type: "prompt"
+        input_variables:
+          - parsed_problem
+          - principle_1
+        output_format: "json"
+        validation:
+          required_keys:
+            - features
+            - architecture_diagram
+            - hybrid_score
+
+        prompt_template: |
+          Problem: {parsed_problem.core_problem}
+          MVP Features: {principle_1.mvp_features}
+
+          Principle 2: HYBRID ARCHITECTURE - Use AI + Deterministic Logic strategically
+
+          For each MVP feature, determine:
+          - Which parts are DETERMINISTIC? (Rules, math, algorithms - fast, reliable, testable)
+          - Which parts are CREATIVE/CONTEXTUAL? (Need AI for nuanced judgment)
+
+          Examples:
+          - EventFlow: Dijkstra's algorithm (deterministic) + Gemini for crowd wisdom (AI)
+          - ElectAI: Data lookup (deterministic) + Chat explanation (AI)
+
+          Assign an honest hybrid_score from 1 (all AI, no structure) to 10 (optimal split).
+
+          Return valid JSON only:
+          {{
+            "features": [
+              {{
+                "feature": "feature_name",
+                "deterministic_component": "description",
+                "deterministic_tech": "algorithm/library",
+                "ai_component": "description",
+                "ai_usage": "how used",
+                "why_this_split": "..."
+              }}
+            ],
+            "architecture_diagram": "ASCII or plain-text description",
+            "hybrid_score": 7
+          }}
+
+        output_variable: "principle_2"
+
+      - task_id: "principle_3_context"
+        name: "Principle 3: Context Injection"
+        type: "prompt"
+        input_variables:
+          - parsed_problem
+          - principle_2
+        output_format: "json"
+        validation:
+          required_keys:
+            - system_prompts
+            - context_architecture
+            - context_score
+
+        prompt_template: |
+          Problem: {parsed_problem.core_problem}
+          Hybrid Features: {principle_2.features}
+
+          Principle 3: CONTEXT INJECTION - Continuously feed live data into system prompts
+
+          Instead of generic AI prompts, inject LIVE STATE from your app:
+          - User history (past interactions, preferences)
+          - Real-time data (current state, metrics)
+          - Environmental context (location, time, events)
+
+          Design prompt templates with explicit injection points.
+
+          Assign an honest context_score from 1 (generic prompts) to 10 (deeply personalized).
+
+          Return valid JSON only:
+          {{
+            "system_prompts": [
+              {{
+                "name": "prompt_name",
+                "base_prompt": "template with {{injection_point}} markers",
+                "injection_points": [
+                  {{
+                    "variable": "variable_name",
+                    "source": "database|api|event|user_state",
+                    "format": "json|string|array",
+                    "example": "..."
+                  }}
+                ],
+                "expected_output": "describe what good output looks like"
+              }}
+            ],
+            "context_architecture": "how data flows from sources into prompts",
+            "context_score": 7
+          }}
+
+        output_variable: "principle_3"
+
+      - task_id: "principle_4_google"
+        name: "Principle 4: Deep Google Integration"
+        type: "prompt"
+        input_variables:
+          - parsed_problem
+          - principle_1
+        output_format: "json"
+        validation:
+          required_keys:
+            - google_services_map
+            - recommended_tech_stack
+            - google_integration_score
+
+        prompt_template: |
+          Problem: {parsed_problem.core_problem}
+          MVP Features: {principle_1.mvp_features}
+
+          Principle 4: DEEP GOOGLE INTEGRATION - 3-5 services, meaningful use
+
+          Recommend meaningful Google services only where they create real product advantage.
+          Winners used:
+          - Gemini 2.5 Flash (reasoning, vision, translation)
+          - Cloud Run / Cloud Functions (backend)
+          - Firestore (data)
+          - Cloud Maps / YouTube / Cloud Translation (specialized)
+          - Secret Manager (security)
+
+          Map each feature to Google services and recommend a complete stack.
+          Assign an honest google_integration_score from 1 (barely used) to 10 (deeply integrated).
+
+          Return valid JSON only:
+          {{
+            "google_services_map": [
+              {{
+                "feature": "feature_name",
+                "services": [
+                  {{
+                    "service": "service_name",
+                    "why": "why this service is the right fit",
+                    "integration_depth": "core|supporting|utility",
+                    "api_calls_estimate": "low|medium|high"
+                  }}
+                ],
+                "total_services_for_this_feature": 2
+              }}
+            ],
+            "recommended_tech_stack": {{
+              "frontend": "...",
+              "backend": "...",
+              "database": "...",
+              "ai_engine": "...",
+              "security": "...",
+              "monitoring": "..."
+            }},
+            "google_integration_score": 7
+          }}
+
+        output_variable: "principle_4"
+
+      - task_id: "principle_5_security"
+        name: "Principle 5: Security-First"
+        type: "prompt"
+        input_variables:
+          - parsed_problem
+          - principle_4
+        output_format: "json"
+        validation:
+          required_keys:
+            - security_checklist
+            - security_score
+            - critical_issues
+
+        prompt_template: |
+          Problem: {parsed_problem.core_problem}
+          Tech Stack: {principle_4.recommended_tech_stack}
+
+          Principle 5: SECURITY-FIRST (Mandatory, not optional)
+
+          Create a comprehensive, practical security checklist covering:
+          1. PII Detection & Redaction
+          2. Prompt Injection Guards
+          3. Credential Management (Secret Manager)
+          4. Backend isolation and authorization
+          5. CI/CD security gates
+
+          Assign an honest security_score from 1 (no security) to 10 (comprehensive).
+          List any critical_issues that must be fixed before submission.
+
+          Return valid JSON only:
+          {{
+            "security_checklist": [
+              {{
+                "category": "PII Protection",
+                "checks": [
+                  {{
+                    "check": "PII redaction before sending to AI",
+                    "implementation": "code_snippet_or_service",
+                    "libraries": ["library1", "library2"],
+                    "test_cases": ["test1", "test2"]
+                  }}
+                ]
+              }},
+              {{
+                "category": "Prompt Injection",
+                "checks": [
+                  {{
+                    "check": "Input validation and prompt hardening",
+                    "implementation": "...",
+                    "libraries": ["..."],
+                    "test_cases": ["..."]
+                  }}
+                ]
+              }},
+              {{
+                "category": "Secret Management",
+                "checks": [
+                  {{
+                    "check": "No hardcoded secrets in codebase",
+                    "implementation": "All credentials in GCP Secret Manager",
+                    "verification": "git log grep for key patterns"
+                  }}
+                ]
+              }},
+              {{
+                "category": "Backend Security",
+                "checks": [
+                  {{
+                    "check": "Authz and service boundary enforcement",
+                    "implementation": "...",
+                    "verification": "..."
+                  }}
+                ]
+              }},
+              {{
+                "category": "CI/CD Pipeline",
+                "checks": [
+                  {{
+                    "check": "Static analysis and dependency scanning",
+                    "implementation": "...",
+                    "verification": "..."
+                  }}
+                ]
+              }}
+            ],
+            "security_score": 7,
+            "critical_issues": []
+          }}
+
+        output_variable: "principle_5"
+
+      - task_id: "principle_6_ux"
+        name: "Principle 6: Premium UX"
+        type: "prompt"
+        input_variables:
+          - parsed_problem
+          - principle_1
+        output_format: "json"
+        validation:
+          required_keys:
+            - user_journey_enhanced
+            - design_system
+            - performance_targets
+            - ux_score
+
+        prompt_template: |
+          Problem: {parsed_problem.core_problem}
+          Primary User: {principle_1.primary_persona}
+          User Journey: {principle_1.primary_user_journey}
+
+          Principle 6: PREMIUM UX - Microinteractions that delight
+
+          Design polished, fast, and accessible interactions. Focus on:
+          1. Visual feedback (3D, animations, transitions) using `frontend-design` and `ui-ux-pro-max` styling.
+          2. Typewriter responses (streaming output, not info dumps) using modern CSS transitions verified by `modern-web-guidance`.
+          3. Proactive context awareness
+          4. Mobile-first responsiveness
+          5. Dark mode / accessibility
+
+          Assign an honest ux_score from 1 (bare bones) to 10 (delightful). Make sure to explicitly specify recommendations to use the `frontend-design`, `ui-ux-pro-max`, and `modern-web-guidance` skills.
+
+          Return valid JSON only:
+          {{
+            "user_journey_enhanced": [
+              {{
+                "step": "step_name",
+                "base_interaction": "...",
+                "ux_enhancement": "what makes this moment delightful?",
+                "microinteraction": "Framer Motion / CSS animation technique",
+                "accessibility": "keyboard nav / screen reader consideration"
+              }}
+            ],
+            "design_system": {{
+              "colors": "dark mode palette recommendation",
+              "typography": "readable font stack",
+              "spacing": "consistent rhythm",
+              "components": "button, card, form styles"
+            }},
+            "performance_targets": {{
+              "initial_load": "<2 seconds",
+              "interaction_response": "<100ms",
+              "bundle_size": "<150KB gzipped"
+            }},
+            "ux_score": 7
+          }}
+
+        output_variable: "principle_6"
+
+      - task_id: "principle_7_iteration"
+        name: "Principle 7: Iteration Story"
+        type: "prompt"
+        input_variables:
+          - parsed_problem
+        output_format: "json"
+        validation:
+          required_keys:
+            - v1_approach
+            - v2_improvements
+            - lessons_for_submission
+            - iteration_story
+
+        prompt_template: |
+          Problem: {parsed_problem.core_problem}
+
+          Principle 7: ITERATION STORY - Show learning & growth
+
+          Plan a believable improvement narrative for the submission:
+          1. V1: What would the first attempt be? (Simple, maybe boring)
+          2. V2: How was it improved based on feedback or insight?
+          3. Lessons learned: What would be done differently?
+
+          Return valid JSON only:
+          {{
+            "v1_approach": {{
+              "description": "...",
+              "problems": ["problem1", "problem2"],
+              "why_insufficient": "..."
+            }},
+            "v2_improvements": [
+              {{
+                "improvement": "...",
+                "based_on": "feedback/insight that triggered this change",
+                "implementation": "..."
+              }}
+            ],
+            "lessons_for_submission": "narrative that shows growth mindset",
+            "iteration_story": "compelling narrative for judges"
+          }}
+
+        output_variable: "principle_7"
+
+      - task_id: "principle_8_accessibility"
+        name: "Principle 8: Accessibility"
+        type: "prompt"
+        input_variables:
+          - parsed_problem
+          - principle_1
+        output_format: "json"
+        validation:
+          required_keys:
+            - languages
+            - visual_accessibility
+            - motor_accessibility
+            - cognitive_accessibility
+            - testing_checklist
+            - accessibility_score
+
+        prompt_template: |
+          Problem: {parsed_problem.core_problem}
+          User Personas: {parsed_problem.user_personas}
+          Primary Persona: {principle_1.primary_persona}
+
+          Principle 8: ACCESSIBILITY - Inclusive by design
+
+          Plan for:
+          1. Multilingual support (Cloud Translation)
+          2. Visual accessibility (high contrast, large text)
+          3. Motor accessibility (keyboard nav, large touch targets)
+          4. Cognitive accessibility (simple language, clear flows)
+          5. Sensory accessibility (alt text, captions)
+
+          Assign an honest accessibility_score from 1 (inaccessible) to 10 (fully inclusive).
+
+          Return valid JSON only:
+          {{
+            "languages": [
+              {{
+                "language": "Hindi",
+                "implementation": "Cloud Translation API",
+                "user_segment": "which persona benefits"
+              }}
+            ],
+            "visual_accessibility": [
+              {{
+                "requirement": "high contrast",
+                "implementation": "WCAG AA color ratios (4.5:1 minimum)"
+              }}
+            ],
+            "motor_accessibility": [
+              {{
+                "requirement": "keyboard navigation",
+                "implementation": "logical tab order and visible focus states"
+              }}
+            ],
+            "cognitive_accessibility": [
+              {{
+                "requirement": "clear language",
+                "target_reading_level": "8th grade"
+              }}
+            ],
+            "testing_checklist": ["axe-core", "WAVE", "manual keyboard testing"],
+            "accessibility_score": 7
+          }}
+
+        output_variable: "principle_8"
+
+# ============================================================================
+# STAGE 3: PROJECT PLANNING
+# ============================================================================
+  - stage_id: "project_planning"
+    name: "Generate Project Plan"
+    description: "Create a realistic implementation roadmap and submission checklist."
+    next_stage: "tech_details"
+
+    tasks:
+      - task_id: "generate_roadmap"
+        name: "Day-by-Day Implementation Roadmap"
+        type: "prompt"
+        input_variables:
+          - principle_1
+          - principle_2
+          - principle_3
+          - principle_4
+          - principle_5
+          - principle_6
+          - principle_8
+        output_format: "json"
+        validation:
+          required_keys:
+            - day_1
+            - day_2
+            - day_3
+            - day_4
+            - total_hours
+            - critical_path
+
+        prompt_template: |
+          Principles Analysis:
+          - Focus: {principle_1}
+          - Hybrid Architecture: {principle_2}
+          - Context Injection: {principle_3}
+          - Google Integration: {principle_4}
+          - Security: {principle_5}
+          - UX: {principle_6}
+          - Accessibility: {principle_8}
+
+          Create a REALISTIC 4-day hackathon schedule.
+          All 4 days MUST have concrete, specific tasks - not empty arrays.
+          Assume 8 working hours per day.
+          Include tasks for the agent or developer to run:
+          - Day 1: `find-skills` to find matching packages and templates.
+          - Day 2 & 3: `modern-web-guidance` to research current HTML/CSS features, and `frontend-design` and `ui-ux-pro-max` to implement/polish the premium UI.
+
+          Return valid JSON only:
+          {{
+            "day_1": {{
+              "theme": "Architecture & Setup",
+              "hours": 8,
+              "tasks": [
+                {{
+                  "task": "task_name",
+                  "time_hours": 1,
+                  "deliverable": "what you produce",
+                  "tools": ["tool1", "tool2"],
+                  "success_criteria": "how to know it's done"
+                }}
+              ],
+              "deliverable_by_eod": "working backend scaffold + frontend setup"
+            }},
+            "day_2": {{
+              "theme": "Core Features & AI Integration",
+              "hours": 8,
+              "tasks": [
+                {{
+                  "task": "...",
+                  "time_hours": 1,
+                  "deliverable": "...",
+                  "tools": ["..."],
+                  "success_criteria": "..."
+                }}
+              ],
+              "deliverable_by_eod": "working feature + AI integration"
+            }},
+            "day_3": {{
+              "theme": "Security, Testing, Polish",
+              "hours": 8,
+              "tasks": [
+                {{
+                  "task": "...",
+                  "time_hours": 1,
+                  "deliverable": "...",
+                  "tools": ["..."],
+                  "success_criteria": "..."
+                }}
+              ],
+              "deliverable_by_eod": "secure, tested, polished features"
+            }},
+            "day_4": {{
+              "theme": "Demo, Documentation, Submission",
+              "hours": 8,
+              "tasks": [
+                {{
+                  "task": "...",
+                  "time_hours": 1,
+                  "deliverable": "...",
+                  "tools": ["..."],
+                  "success_criteria": "..."
+                }}
+              ],
+              "deliverable_by_eod": "production-ready submission"
+            }},
+            "total_hours": 32,
+            "buffer_hours": 4,
+            "critical_path": ["task1", "task2", "task3"],
+            "dependencies": [
+              {{"from": "task1", "to": "task2", "reason": "..."}}
+            ]
+          }}
+
+        output_variable: "roadmap"
+
+      - task_id: "mandatory_checklist"
+        name: "Mandatory Requirements Checklist"
+        type: "prompt"
+        input_variables:
+          - parsed_problem
+          - principle_4
+        output_format: "json"
+        validation:
+          required_keys:
+            - must_haves
+            - should_haves
+            - nice_to_haves
+
+        prompt_template: |
+          Problem: {parsed_problem.core_problem}
+          Tech Stack: {principle_4.recommended_tech_stack}
+
+          Create the MUST-HAVE checklist for hackathon submission.
+          All items must be specific to this problem and tech stack.
+
+          Return valid JSON only:
+          {{
+            "must_haves": [
+              {{
+                "requirement": "ONE clear problem statement",
+                "why": "judges need to understand what you solved in 10 seconds",
+                "how_to_achieve": "write 1-sentence problem",
+                "verification": "ask someone unfamiliar - do they get it in 10 seconds?",
+                "done": false
+              }},
+              {{
+                "requirement": "Serverless backend (Cloud Run OR Cloud Functions)",
+                "why": "winners showed architectural maturity",
+                "how_to_achieve": "deploy to Cloud Run or Functions v2",
+                "verification": "API responds from any HTTP client",
+                "done": false
+              }},
+              {{
+                "requirement": "Zero hardcoded secrets",
+                "why": "security is mandatory, not optional",
+                "how_to_achieve": "all credentials in Secret Manager",
+                "verification": "git log grep finds no secrets",
+                "done": false
+              }},
+              {{
+                "requirement": "PII redaction implemented",
+                "why": "shows security thinking under pressure",
+                "how_to_achieve": "detect and mask sensitive data before AI calls",
+                "verification": "test case: user enters phone number, it gets masked",
+                "done": false
+              }},
+              {{
+                "requirement": "80%+ test coverage",
+                "why": "code quality matters to judges",
+                "how_to_achieve": "pytest/jest with >80% coverage enforced in CI",
+                "verification": "coverage report generated in CI pipeline",
+                "done": false
+              }},
+              {{
+                "requirement": "Works on mobile and desktop",
+                "why": "judges review submissions on phones",
+                "how_to_achieve": "mobile-first responsive design",
+                "verification": "tested on iPhone + tablet + desktop",
+                "done": false
+              }},
+              {{
+                "requirement": "Handles AI API failures gracefully",
+                "why": "production reliability under load",
+                "how_to_achieve": "fallback logic + timeout handling + user messaging",
+                "verification": "simulate API failure, app still works and informs user",
+                "done": false
+              }}
+            ],
+            "should_haves": [
+              {{
+                "requirement": "3+ Google services meaningfully integrated",
+                "why": "competitive edge in a Google hackathon",
+                "verification": "can you remove any service without loss? if yes, integrate more deeply"
+              }},
+              {{
+                "requirement": "Stunning aesthetics designed with frontend-design & ui-ux-pro-max",
+                "why": "Aesthetics are critical. Basic or simple UI will fail to impress the judges.",
+                "verification": "Utilize ui-ux-pro-max guidelines and frontend-design styles, checking with modern-web-guidance to ensure compliance with modern standards."
+              }},
+              {{
+                "requirement": "Multilingual support (6+ languages)",
+                "why": "accessibility + Indian context scores well",
+                "implementation": "Cloud Translation API"
+              }},
+              {{
+                "requirement": "Proactive context-aware features",
+                "why": "makes the app feel intelligent, not just reactive",
+                "example": "fetch user history, proactively suggest next step"
+              }},
+              {{
+                "requirement": "Microinteractions (Framer Motion, streaming, effects)",
+                "why": "premium feel wins on first impression",
+                "deliverable": "at least 3 delightful moments in the user journey"
+              }},
+              {{
+                "requirement": "Architecture diagram + complete README",
+                "why": "judges understand your thinking without asking",
+                "verification": "someone unfamiliar can build from your docs alone"
+              }}
+            ],
+            "nice_to_haves": [
+              {{
+                "requirement": "Demo video (2-3 min)",
+                "why": "memorable submission, stands out in async review"
+              }},
+              {{
+                "requirement": "Offline capability",
+                "why": "wow factor, shows technical depth"
+              }},
+              {{
+                "requirement": "<2s initial load time",
+                "why": "performance optimization shows polish"
+              }}
+            ]
+          }}
+
+        output_variable: "checklist"
+
+# ============================================================================
+# STAGE 4: TECH STACK & CONFIGURATION
+# ============================================================================
+  - stage_id: "tech_details"
+    name: "Detailed Tech Stack and Configuration"
+    description: "Generate concrete technical recommendations and starter scaffolding."
+    next_stage: "final_output"
+
+    tasks:
+      - task_id: "tech_recommendations"
+        name: "Detailed Tech Stack"
+        type: "prompt"
+        input_variables:
+          - parsed_problem
+          - principle_1
+          - principle_4
+        output_format: "json"
+        validation:
+          required_keys:
+            - frontend
+            - backend
+            - database
+            - ai_layer
+            - deployment
+            - local_development
+
+        prompt_template: |
+          Problem: {parsed_problem.core_problem}
+          MVP Features: {principle_1.mvp_features}
+          Base Stack: {principle_4.recommended_tech_stack}
+
+          Provide specific technology recommendations with rationale.
+          Do not assume a provider-specific SDK unless it matches the recommended AI engine.
+          Do not recommend technologies without explaining why they are the best fit.
+          For local_development commands, explicitly list instructions/commands to run the `find-skills`, `modern-web-guidance`, `frontend-design`, and `ui-ux-pro-max` tools.
+
+          Return valid JSON only:
+          {{
+            "frontend": {{
+              "framework": "React 18 with TypeScript",
+              "why": "best for responsive UI + type safety",
+              "key_libraries": [
+                {{"name": "Framer Motion", "for": "microinteractions"}},
+                {{"name": "React Query", "for": "API state management"}},
+                {{"name": "Tailwind CSS", "for": "rapid UI styling"}},
+                {{"name": "next/auth", "for": "Google Sign-In"}}
+              ],
+              "folder_structure": "src/components, src/pages, src/hooks, src/lib",
+              "build_tool": "Next.js 14 (handles routing + optimization)"
+            }},
+            "backend": {{
+              "platform": "Google Cloud Run",
+              "language": "Node.js 20 with Express",
+              "why": "serverless, auto-scaling, Google-native",
+              "key_libraries": [
+                {{"name": "express-validator", "for": "input validation"}},
+                {{"name": "@google-cloud/secret-manager", "for": "secrets"}},
+                {{"name": "@google/generative-ai", "for": "Gemini API"}},
+                {{"name": "cors", "for": "frontend communication"}}
+              ],
+              "environment": ".env.example only (no real secrets)"
+            }},
+            "database": {{
+              "primary": "Firestore (Google Cloud)",
+              "why": "real-time sync, built-in security rules",
+              "schema": "recommend collections and document structure based on the problem"
+            }},
+            "ai_layer": {{
+              "model": "Gemini 2.5 Flash",
+              "why": "fast + multimodal (text + vision) + Google-native",
+              "rate_limit": "implement exponential backoff and retry",
+              "fallback": "FAQ-based responses if API fails"
+            }},
+            "deployment": {{
+              "frontend": "Vercel or Cloud Run",
+              "backend": "Google Cloud Run with Cloud Build",
+              "monitoring": "Cloud Logging + Cloud Trace",
+              "ci_cd": "GitHub Actions with security gates"
+            }},
+            "local_development": {{
+              "setup": "Firebase Emulator Suite + Cloud Run local",
+              "commands": [
+                "npm install",
+                "npm run dev",
+                "npm test",
+                "agent: find-skills",
+                "agent: modern-web-guidance",
+                "agent: frontend-design",
+                "agent: ui-ux-pro-max"
+              ]
+            }}
+          }}
+
+        output_variable: "detailed_tech"
+
+      - task_id: "boilerplate_generator"
+        name: "Generate Project Boilerplate"
+        type: "prompt"
+        input_variables:
+          - detailed_tech
+          - parsed_problem
+        output_format: "json"
+        validation:
+          required_keys:
+            - package_json
+            - env_template
+            - folder_structure
+            - starter_files
+
+        prompt_template: |
+          Tech Stack: {detailed_tech}
+          Problem: {parsed_problem.core_problem}
+
+          Generate starter code templates and file structure for this specific problem.
+
+          The starter_files MUST include at minimum:
+          1. A health check endpoint
+          2. A Gemini AI service wrapper with context injection support and error handling
+          3. A main frontend chat/interaction component with typewriter/streaming effect
+          4. A security test file covering PII redaction and prompt injection
+
+          Return valid JSON only:
+          {{
+            "package_json": {{
+              "name": "sanitized-problem-name",
+              "version": "0.0.1",
+              "dependencies": {{"react": "^18.0.0", "framer-motion": "^10.0.0"}},
+              "devDependencies": {{"typescript": "^5.0.0", "jest": "^29.0.0"}},
+              "scripts": {{"dev": "next dev", "build": "next build", "test": "jest --coverage", "deploy": "gcloud run deploy"}}
+            }},
+            "env_template": {{
+              "file": ".env.example",
+              "variables": [
+                {{"name": "NEXT_PUBLIC_FIREBASE_CONFIG", "example": "{{...}}"}},
+                {{"name": "GEMINI_API_KEY", "note": "use Secret Manager in prod, never commit"}},
+                {{"name": "GCP_PROJECT_ID", "example": "your-project-id"}}
+              ]
+            }},
+            "folder_structure": {{
+              "frontend": "src/app, src/components, src/lib, src/hooks, public/",
+              "backend": "api/routes, api/services, api/middleware, config/",
+              "shared": "types/, utils/"
+            }},
+            "starter_files": [
+              {{
+                "file": "backend/api/routes/health.ts",
+                "purpose": "health check endpoint",
+                "code": "express GET /health returning status and version"
+              }},
+              {{
+                "file": "backend/api/services/gemini.ts",
+                "purpose": "Gemini integration with context injection and error handling",
+                "code": "service class with generateWithContext(systemPrompt, injections, userMessage) method, retry logic, and fallback"
+              }},
+              {{
+                "file": "frontend/components/ChatInterface.tsx",
+                "purpose": "main interaction component with streaming/typewriter effect",
+                "code": "React component with Framer Motion animations and streaming text display"
+              }},
+              {{
+                "file": "backend/__tests__/security.test.ts",
+                "purpose": "PII redaction and prompt injection security tests",
+                "code": "test cases for phone number masking, email masking, and prompt injection rejection"
+              }}
+            ]
+          }}
+
+        output_variable: "boilerplate"
+
+# ============================================================================
+# STAGE 5: FINAL OUTPUT & SUBMISSION BRIEF
+# ============================================================================
+  - stage_id: "final_output"
+    name: "Generate Final Project Brief"
+    description: "Assemble a builder-ready brief and run a QA pass."
+    next_stage: "output"
+
+    tasks:
+      - task_id: "generate_brief"
+        name: "Project Submission Brief"
+        type: "prompt"
+        input_variables:
+          - parsed_problem
+          - principle_1
+          - principle_2
+          - principle_3
+          - principle_4
+          - principle_5
+          - principle_6
+          - principle_7
+          - principle_8
+          - roadmap
+          - detailed_tech
+          - checklist
+        output_format: "markdown"
+
+        prompt_template: |
+          All Analyses:
+          - Problem: {parsed_problem}
+          - Principles: {principle_1}, {principle_2}, {principle_3}, {principle_4}, {principle_5}, {principle_6}, {principle_7}, {principle_8}
+          - Roadmap: {roadmap}
+          - Tech: {detailed_tech}
+          - Checklist: {checklist}
+
+          Generate a comprehensive project brief that builders can execute immediately.
+          Be concise and actionable. Avoid vague language.
+
+          Output in MARKDOWN format using this exact structure:
+
+          # Project Brief: [core_problem]
+
+          ## Problem Statement
+          [1-sentence clear problem]
+
+          ## Primary User
+          [User persona details]
+
+          ## Winning Principles Applied
+
+          ### 1. Laser Focus
+          [What we're solving, what we're NOT solving]
+
+          ### 2. Hybrid Architecture
+          [Where AI, where deterministic logic, with specific technologies]
+
+          ### 3. Context Injection
+          [How live data is injected into prompts, with examples]
+
+          ### 4. Google Integration
+          [Which services, why, integration depth]
+
+          ### 5. Security-First
+          [Security measures checklist - specific, not generic]
+
+          ### 6. Premium UX
+          [Delightful moments and accessibility features]
+
+          ### 7. Iteration Story
+          [V1 vs V2, lessons learned for judges]
+
+          ### 8. Accessibility
+          [Languages, inclusive design specifics]
+
+          ## MVP Features (What to Build)
+          [Feature 1, Feature 2, Feature 3 with clear acceptance criteria]
+
+          ## Tech Stack
+          [Frontend, Backend, Database, AI, Deployment]
+
+          ## Day-by-Day Roadmap
+          [Detailed schedule with deliverables per day]
+
+          ## Mandatory Checklist
+          [Must-haves, Should-haves, Nice-to-haves]
+
+          ## Security Checklist
+          [All security requirements from principle_5]
+
+          ## Submission Content
+          - GitHub repo with README
+          - Demo video (2-3 min)
+          - Architecture diagram
+          - Live demo URL
+          - Your iteration story (why this approach)
+
+          ---
+          Generated by PromptWars Workflow v1.2
+
+        output_variable: "final_brief"
+
+      - task_id: "quality_check"
+        name: "Quality Assurance"
+        type: "prompt"
+        input_variables:
+          - parsed_problem
+          - principle_1
+          - principle_2
+          - principle_3
+          - principle_4
+          - principle_5
+          - principle_6
+          - principle_8
+        output_format: "json"
+        validation:
+          required_keys:
+            - overall_score
+            - red_flags
+            - green_lights
+            - risk_assessment
+            - confidence_level
+            - final_recommendations
+
+        prompt_template: |
+          Problem: {parsed_problem.core_problem}
+
+          Do a final quality check. Review all principle scores and flag anything below 7.
+
+          Scores to evaluate:
+          - Focus: {principle_1.focus_score}/10
+          - Hybrid architecture: {principle_2.hybrid_score}/10
+          - Context injection: {principle_3.context_score}/10
+          - Google integration: {principle_4.google_integration_score}/10
+          - Security: {principle_5.security_score}/10
+          - UX: {principle_6.ux_score}/10
+          - Accessibility: {principle_8.accessibility_score}/10
+
+          For each score below 7, provide a specific, actionable fix.
+          overall_score is the average of all 7 scores.
+          confidence_level is an honest estimate (e.g. "70%") of winning probability given this plan.
+
+          Return valid JSON only:
+          {{
+            "overall_score": 7,
+            "red_flags": [
+              {{
+                "principle": "...",
+                "score": 5,
+                "issue": "...",
+                "fix": "specific actionable improvement"
+              }}
+            ],
+            "green_lights": [
+              "what looks strong and competitive"
+            ],
+            "risk_assessment": "what could go wrong during the hackathon?",
+            "confidence_level": "70%",
+            "final_recommendations": ["recommendation1", "recommendation2"]
+          }}
+
+        output_variable: "qa_report"
+
+# ============================================================================
+# STAGE 6: OUTPUT FILES
+# ============================================================================
+  - stage_id: "output"
+    name: "Generate Output Files"
+    description: "Create all workflow deliverables."
+
+    tasks:
+      - task_id: "create_outputs"
+        name: "Create Output Documents"
+        type: "script"
+        outputs:
+          - file: "PROJECT_BRIEF.md"
+            content: "{final_brief}"
+            description: "Full project brief for execution"
+          - file: "SECURITY_CHECKLIST.json"
+            content: "{principle_5.security_checklist}"
+            description: "All security requirements"
+          - file: "ROADMAP.json"
+            content: "{roadmap}"
+            description: "Day-by-day implementation schedule"
+          - file: "TECH_STACK.json"
+            content: "{detailed_tech}"
+            description: "Detailed technology recommendations"
+          - file: "MANDATORY_CHECKLIST.json"
+            content: "{checklist}"
+            description: "Must-haves, Should-haves, Nice-to-haves"
+          - file: "QA_REPORT.json"
+            content: "{qa_report}"
+            description: "Quality assurance and risk assessment"
+          - file: "BOILERPLATE.json"
+            content: "{boilerplate}"
+            description: "Starter code templates"
+          - file: "PRINCIPLES_ANALYSIS.json"
+            content: |
+              {{
+                "principle_1_focus": {principle_1},
+                "principle_2_hybrid": {principle_2},
+                "principle_3_context": {principle_3},
+                "principle_4_google": {principle_4},
+                "principle_5_security": {principle_5},
+                "principle_6_ux": {principle_6},
+                "principle_7_iteration": {principle_7},
+                "principle_8_accessibility": {principle_8}
+              }}
+            description: "Complete analysis of all 8 winning principles"
+
+# ============================================================================
+# WORKFLOW INPUTS
+# ============================================================================
+inputs:
+  - name: "problem_statement"
+    type: "string"
+    required: true
+    description: "The linear problem statement from judges"
+    example: "Voters struggle to understand the Indian election process. Build a tool to help them."
+
+  - name: "context"
+    type: "string"
+    required: false
+    default: ""
+    description: "Additional context or constraints"
+    example: "Must work for first-time voters and NRI voters"
+
+  - name: "constraints"
+    type: "string"
+    required: false
+    default: ""
+    description: "Technical or resource constraints"
+    example: "4-day hackathon, must use Google Cloud"
+
+# ============================================================================
+# WORKFLOW CONFIGURATION
+# ============================================================================
+config:
+  timeout_minutes: 30
+  max_retries: 2
+  error_handling: "detailed"
+
+  # Use this context for all internal prompts
+  internal_system_prompt: |
+    You are an expert hackathon architect analyzing PromptWars submissions.
+    Apply all 8 winning principles: Focus, Hybrid Architecture, Context Injection,
+    Google Integration, Security, UX, Iteration, Accessibility.
+    Leverage specialized designer/developer skills such as `frontend-design`, `ui-ux-pro-max`,
+    `modern-web-guidance`, and `find-skills` to elevate the UI and overall project execution.
+
+    Be specific: avoid generic advice. Provide actionable recommendations.
+    Output valid JSON for structured processing unless markdown is explicitly requested.
+    Scores must reflect honest assessments (1-10), not placeholder values.
+
+    Remember: The "Fluent trap" is solving 5 problems shallowly. Enforce laser focus.
+
+  # Environment variables
+  environment:
+    TEMPERATURE: 0.7
+    MAX_TOKENS: 4000
+    # MODEL is intentionally not set here - this workflow is model-agnostic
+    # Set your model at the runner level (e.g. Gemini 2.5 Flash, Claude Sonnet, GPT-4o)
+
+# ============================================================================
+# SUCCESS CRITERIA
+# ============================================================================
+success_criteria:
+  - "Problem statement is clarified and scoped to a single user journey"
+  - "Refined problem statement propagates to all downstream stages if scope was adjusted"
+  - "All 8 principles are analyzed with honest scores (not placeholder values)"
+  - "Red flags are identified and actionable fixes provided for any principle scoring <7"
+  - "Day-by-day roadmap is realistic, executable, and fully populated for all 4 days"
+  - "All mandatory checklist items are documented and specific to the problem"
+  - "Security checklist is comprehensive and addresses PII, injection, and secrets"
+  - "Project brief is execution-ready with no vague filler content"
+  - "Boilerplate covers health check, AI service, UI component, and security tests"
+  - "QA report confidence_level reflects an honest win probability estimate"
