@@ -1,274 +1,19 @@
 'use client';
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { motion, AnimatePresence, useMotionValue, useTransform } from 'framer-motion';
-import { Leaf, Zap, TrendingUp, Settings, ChevronDown, X, Check, Loader2, Globe, Home, MapPin, Utensils } from 'lucide-react';
-
-// ─── Custom Icons ─────────────────────────────────────────────────────────
-const FlameIcon = (props: React.SVGProps<SVGSVGElement>) => (
-  <svg viewBox="0 0 24 24" fill="currentColor" {...props}>
-    <path d="M12 2c-.44 0-.85.24-1.07.63-.67 1.18-1.44 2.37-2.18 3.56C7.56 8.13 6 10.45 6 13c0 3.31 2.69 6 6 6s6-2.69 6-6c0-2.55-1.56-4.87-2.75-6.81l-2.18-3.56c-.22-.39-.63-.63-1.07-.63zm0 13c-1.1 0-2-.9-2-2 0-1.33 1.5-2.75 2-3.25.5.5 2 1.92 2 3.25 0 1.1-.9 2-2 2z" />
-  </svg>
-);
-
-const SproutHandIcon = (props: React.SVGProps<SVGSVGElement>) => (
-  <svg viewBox="0 0 24 24" fill="currentColor" {...props}>
-    <path d="M20 14h-5.5c-.8 0-1.5-.7-1.5-1.5s.7-1.5 1.5-1.5H20c.8 0 1.5.7 1.5 1.5S20.8 14 20 14z" />
-    <path d="M2 15.5C2 14.7 2.7 14 3.5 14H11c.8 0 1.5.7 1.5 1.5v1c0 .8-.7 1.5-1.5 1.5H3.5C2.7 18 2 17.3 2 16.5v-1z" opacity="0.8" />
-    <path d="M12 9c-2 0-3.5-1.5-3.5-3.5 0 2 1.5 3.5 3.5 3.5z" />
-    <path d="M12 9c2 0 3.5-1.5 3.5-3.5 0 2-1.5 3.5-3.5 3.5z" />
-    <path d="M11 8.5h2V12h-2z" />
-  </svg>
-);
-
-const CO2CloudIcon = (props: React.SVGProps<SVGSVGElement>) => {
-  const id = React.useId();
-  return (
-    <svg viewBox="0 0 24 24" fill="currentColor" {...props}>
-      <defs>
-        <mask id={id}>
-          <rect width="24" height="24" fill="white" />
-          <text x="12" y="14.5" fill="black" fontSize="7.5" fontWeight="900" textAnchor="middle" fontFamily="system-ui, -apple-system, sans-serif">CO₂</text>
-        </mask>
-      </defs>
-      <path d="M19.35 10.04C18.67 6.59 15.64 4 12 4 9.11 4 6.6 5.64 5.35 8.04 2.34 8.36 0 10.91 0 14c0 3.31 2.69 6 6 6h13c2.76 0 5-2.24 5-5 0-2.64-2.05-4.78-4.65-4.96z" mask={`url(#${id})`} />
-    </svg>
-  );
-};
-
-const SparkleIcon = (props: React.SVGProps<SVGSVGElement>) => (
-  <svg viewBox="0 0 24 24" fill="currentColor" {...props}>
-    <path d="M12 2C12 7.5 16.5 12 22 12C16.5 12 12 16.5 12 22C12 16.5 7.5 12 2 12C7.5 12 12 7.5 12 2Z" />
-  </svg>
-);
-
-// ─── Types ────────────────────────────────────────────────────────────────
-interface Habit {
-  id: string;
-  name: string;
-  co2SavedPerDay: number;
-  category: string;
-  icon: string;
-  description: string;
-}
-
-interface WeeklyMetrics {
-  completions: number;
-  completionRate: string;
-  rawCo2Saved: number;
-  streak: number;
-  totalLifetimeCo2Saved: number;
-}
-
-interface HabitCardProps {
-  userId: string;
-  backendUrl: string;
-}
-
-interface UserProfile {
-  language: string;
-  city: string;
-  housingType: string;
-  diet: 'mixed' | 'vegetarian' | 'vegan';
-}
+import { motion, AnimatePresence } from 'framer-motion';
+import { Leaf, Zap, TrendingUp, Settings, ChevronDown, Check, Loader2 } from 'lucide-react';
+import { FlameIcon, SproutHandIcon, CO2CloudIcon, SparkleIcon } from './icons/CustomIcons';
+import { CarbonChart } from './CarbonChart';
+import { ProfileModal } from './ProfileModal';
+import { Habit, UserProfile, HabitCardProps } from '../src/lib/types';
+import { useTypewriter } from '../src/hooks/useTypewriter';
 
 const WEEKDAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
-const HOUSING_TYPES = ['Apartment Renter', 'Homeowner', 'Student Dorm', 'Shared House'];
-const DIET_OPTIONS = [
-  { value: 'mixed', label: '🥩 Mixed (includes meat)' },
-  { value: 'vegetarian', label: '🥚 Vegetarian' },
-  { value: 'vegan', label: '🌱 Vegan' },
-];
-const CITIES = ['Mumbai', 'Delhi', 'Bangalore', 'Chennai', 'Kolkata', 'Hyderabad', 'San Francisco', 'New York', 'London', 'Berlin'];
 
-// ─── Typewriter Hook ──────────────────────────────────────────────────────
-function useTypewriter(text: string, speed = 18) {
-  const [displayed, setDisplayed] = useState('');
-  const [done, setDone] = useState(false);
-
-  useEffect(() => {
-    if (!text) { setDisplayed(''); setDone(false); return; }
-    setDisplayed('');
-    setDone(false);
-    let i = 0;
-    const timer = setInterval(() => {
-      setDisplayed(text.slice(0, i + 1));
-      i++;
-      if (i >= text.length) { clearInterval(timer); setDone(true); }
-    }, speed);
-    return () => clearInterval(timer);
-  }, [text, speed]);
-
-  return { displayed, done };
-}
-
-// ─── SVG Carbon Chart ─────────────────────────────────────────────────────
-function CarbonChart({ weeklyData }: { weeklyData: number[] }) {
-  const max = Math.max(...weeklyData, 1);
-  const width = 280;
-  const height = 60;
-  const points = weeklyData.map((v, i) => {
-    const x = (i / (weeklyData.length - 1)) * width;
-    const y = height - (v / max) * height * 0.85 - 4;
-    return `${x},${y}`;
-  }).join(' ');
-
-  const area = `M 0,${height} L ${weeklyData.map((v, i) => {
-    const x = (i / (weeklyData.length - 1)) * width;
-    const y = height - (v / max) * height * 0.85 - 4;
-    return `${x},${y}`;
-  }).join(' L ')} L ${width},${height} Z`;
-
-  return (
-    <svg width="100%" viewBox={`0 0 ${width} ${height}`} preserveAspectRatio="none" role="img" aria-label="Weekly CO₂ savings chart">
-      <defs>
-        <linearGradient id="chartGrad" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stopColor="#34d399" stopOpacity="0.4" />
-          <stop offset="100%" stopColor="#34d399" stopOpacity="0" />
-        </linearGradient>
-      </defs>
-      <path d={area} fill="url(#chartGrad)" />
-      <polyline
-        points={points}
-        fill="none"
-        stroke="#34d399"
-        strokeWidth="2"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-    </svg>
-  );
-}
-
-// ─── Profile Modal ────────────────────────────────────────────────────────
-function ProfileModal({
-  profile, languages, onClose, onSave,
-}: {
-  profile: UserProfile;
-  languages: Record<string, string>;
-  onClose: () => void;
-  onSave: (p: UserProfile) => void;
-}) {
-  const [form, setForm] = useState<UserProfile>({ ...profile });
-  const [saving, setSaving] = useState(false);
-
-  const handleSave = async () => {
-    setSaving(true);
-    await onSave(form);
-    setSaving(false);
-    onClose();
-  };
-
-  return (
-    <motion.div
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      exit={{ opacity: 0 }}
-      style={{
-        position: 'fixed', inset: 0, zIndex: 100,
-        background: 'rgba(5, 10, 14, 0.85)',
-        backdropFilter: 'blur(8px)',
-        display: 'flex', alignItems: 'center', justifyContent: 'center',
-        padding: '16px',
-      }}
-      onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
-    >
-      <motion.div
-        initial={{ opacity: 0, scale: 0.95, y: 16 }}
-        animate={{ opacity: 1, scale: 1, y: 0 }}
-        exit={{ opacity: 0, scale: 0.95, y: 16 }}
-        style={{
-          background: 'rgba(10, 18, 24, 0.98)',
-          border: '1px solid rgba(255,255,255,0.1)',
-          borderRadius: '20px',
-          padding: '28px',
-          width: '100%',
-          maxWidth: '420px',
-          boxShadow: '0 24px 80px rgba(0,0,0,0.6)',
-        }}
-      >
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
-          <h2 style={{ fontSize: '18px', fontWeight: 700, color: '#f0fdf4' }}>Your Profile</h2>
-          <button onClick={onClose} aria-label="Close profile settings" style={{ background: 'none', border: 'none', color: '#9ca3af', cursor: 'pointer', padding: '4px' }}>
-            <X size={20} />
-          </button>
-        </div>
-
-        {/* Language */}
-        <label style={labelStyle}>
-          <Globe size={14} style={{ marginRight: 6 }} /> Language
-        </label>
-        <select value={form.language} onChange={e => setForm({ ...form, language: e.target.value })} style={selectStyle} aria-label="Language preference">
-          {Object.entries(languages).map(([code, name]) => (
-            <option key={code} value={code}>{name}</option>
-          ))}
-        </select>
-
-        {/* City */}
-        <label style={labelStyle}>
-          <MapPin size={14} style={{ marginRight: 6 }} /> City
-        </label>
-        <select value={form.city} onChange={e => setForm({ ...form, city: e.target.value })} style={selectStyle} aria-label="Your city">
-          {CITIES.map(c => <option key={c} value={c}>{c}</option>)}
-        </select>
-
-        {/* Housing Type */}
-        <label style={labelStyle}>
-          <Home size={14} style={{ marginRight: 6 }} /> Housing Type
-        </label>
-        <select value={form.housingType} onChange={e => setForm({ ...form, housingType: e.target.value })} style={selectStyle} aria-label="Housing type">
-          {HOUSING_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
-        </select>
-
-        {/* Diet */}
-        <label style={labelStyle}>
-          <Utensils size={14} style={{ marginRight: 6 }} /> Diet
-        </label>
-        <select value={form.diet} onChange={e => setForm({ ...form, diet: e.target.value as UserProfile['diet'] })} style={selectStyle} aria-label="Diet preference">
-          {DIET_OPTIONS.map(d => <option key={d.value} value={d.value}>{d.label}</option>)}
-        </select>
-
-        <motion.button
-          whileHover={{ scale: 1.02 }}
-          whileTap={{ scale: 0.97 }}
-          onClick={handleSave}
-          disabled={saving}
-          style={{
-            width: '100%', padding: '12px', marginTop: '20px',
-            borderRadius: '10px', border: 'none',
-            background: 'linear-gradient(135deg, #34d399 0%, #10b981 100%)',
-            color: '#065f46', fontSize: '15px', fontWeight: 700,
-            cursor: saving ? 'not-allowed' : 'pointer', opacity: saving ? 0.7 : 1,
-            display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px',
-          }}
-        >
-          {saving ? <Loader2 size={16} style={{ animation: 'spin 1s linear infinite' }} /> : <Check size={16} />}
-          {saving ? 'Saving…' : 'Save Profile'}
-        </motion.button>
-      </motion.div>
-    </motion.div>
-  );
-}
-
-const labelStyle: React.CSSProperties = {
-  display: 'flex', alignItems: 'center',
-  fontSize: '11px', fontWeight: 600, color: '#9ca3af',
-  textTransform: 'uppercase', letterSpacing: '0.08em',
-  marginBottom: '6px', marginTop: '16px',
-};
-const selectStyle: React.CSSProperties = {
-  width: '100%', padding: '10px 12px',
-  background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)',
-  borderRadius: '8px', color: '#f0fdf4', fontSize: '14px',
-  cursor: 'pointer', outline: 'none',
-};
-
-// ─── Main HabitCard Component ─────────────────────────────────────────────
 export const HabitCard: React.FC<HabitCardProps> = ({ userId, backendUrl }) => {
   const [hasMounted, setHasMounted] = useState(false);
-  useEffect(() => {
-    setHasMounted(true);
-  }, []);
+  useEffect(() => { setHasMounted(true); }, []);
 
   const [habits, setHabits] = useState<Habit[]>([]);
   const [activeHabit, setActiveHabit] = useState<Habit | null>(null);
@@ -278,9 +23,7 @@ export const HabitCard: React.FC<HabitCardProps> = ({ userId, backendUrl }) => {
   const [lifetimeSaved, setLifetimeSaved] = useState(0);
   const [coaching, setCoaching] = useState('');
   const coachingRef = useRef(coaching);
-  useEffect(() => {
-    coachingRef.current = coaching;
-  }, [coaching]);
+  useEffect(() => { coachingRef.current = coaching; }, [coaching]);
   const [coachSource, setCoachSource] = useState<'gemini' | 'rules' | null>(null);
   const [loading, setLoading] = useState(false);
   const [coachLoading, setCoachLoading] = useState(false);
@@ -303,6 +46,7 @@ export const HabitCard: React.FC<HabitCardProps> = ({ userId, backendUrl }) => {
       .then(d => d.languages && setLanguages(d.languages))
       .catch(() => {});
   }, [backendUrl]);
+
   const fetchProfile = useCallback(async () => {
     try {
       const res = await fetch(`${backendUrl}/api/user/profile/${userId}`);
@@ -356,7 +100,6 @@ export const HabitCard: React.FC<HabitCardProps> = ({ userId, backendUrl }) => {
     }
   }, [backendUrl, profile.language, selectHabit]);
 
-
   const getCoachInsights = useCallback(async () => {
     setCoachLoading(true);
     setCoaching('');
@@ -375,7 +118,6 @@ export const HabitCard: React.FC<HabitCardProps> = ({ userId, backendUrl }) => {
     } finally { setCoachLoading(false); }
   }, [backendUrl, userId]);
 
-  // Stable ref so logCompletion can call getCoachInsights without a circular dep
   const getCoachInsightsRef = useRef(getCoachInsights);
   useEffect(() => { getCoachInsightsRef.current = getCoachInsights; }, [getCoachInsights]);
 
@@ -396,17 +138,14 @@ export const HabitCard: React.FC<HabitCardProps> = ({ userId, backendUrl }) => {
       setCheckedToday(true);
       setJustChecked(true);
       setTimeout(() => setJustChecked(false), 1500);
-      // Update weekly history chart
-      // getDay() returns 0=Sun…6=Sat; WEEKDAYS is Mon(0)…Sun(6)
-      // Convert: Mon→0, Tue→1, …, Sun→6
-      const jsDay = new Date().getDay(); // 0=Sun, 1=Mon, …
-      const chartIndex = jsDay === 0 ? 6 : jsDay - 1; // Sun→6, Mon→0, …
+
+      const jsDay = new Date().getDay(); 
+      const chartIndex = jsDay === 0 ? 6 : jsDay - 1; 
       setWeeklyHistory(prev => {
         const updated = [...prev];
         updated[chartIndex] = (updated[chartIndex] || 0) + (activeHabit.co2SavedPerDay);
         return updated;
       });
-      // Auto-fetch coaching via stable ref (avoids circular dep)
       getCoachInsightsRef.current();
     } catch (e: any) {
       setError(e.message || 'Error logging completion');
@@ -422,12 +161,9 @@ export const HabitCard: React.FC<HabitCardProps> = ({ userId, backendUrl }) => {
       setProfile(newProfile);
     } catch {}
   }, [backendUrl, userId]);
-  // ─── Initial Load of Profile
-  useEffect(() => {
-    fetchProfile();
-  }, [fetchProfile]);
 
-  // ─── Handle Language changes
+  useEffect(() => { fetchProfile(); }, [fetchProfile]);
+
   useEffect(() => {
     if (isFirstMount.current) {
       isFirstMount.current = false;
@@ -435,14 +171,11 @@ export const HabitCard: React.FC<HabitCardProps> = ({ userId, backendUrl }) => {
       return;
     }
     fetchHabits();
-    // Only refresh coaching translation if coaching already exists;
-    // avoids a spurious API call on first mount before any check-in.
     if (coachingRef.current) {
       getCoachInsights();
     }
   }, [profile.language, fetchHabits, getCoachInsights]);
 
-  // ─── Render ────────────────────────────────────────────────────────────
   return (
     <>
       <AnimatePresence>
@@ -463,7 +196,6 @@ export const HabitCard: React.FC<HabitCardProps> = ({ userId, backendUrl }) => {
         className="glass-card"
         style={{ maxWidth: '520px', width: '100%', padding: '28px', position: 'relative', overflow: 'hidden' }}
       >
-        {/* Decorative glow ring */}
         <div style={{
           position: 'absolute', top: '-60px', right: '-60px',
           width: '200px', height: '200px', borderRadius: '50%',
@@ -471,7 +203,6 @@ export const HabitCard: React.FC<HabitCardProps> = ({ userId, backendUrl }) => {
           pointerEvents: 'none',
         }} />
 
-        {/* Header */}
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
           <div>
             <h2 style={{ fontSize: '20px', fontWeight: 700, color: '#f0fdf4', display: 'flex', alignItems: 'center', gap: '8px' }}>
@@ -492,7 +223,6 @@ export const HabitCard: React.FC<HabitCardProps> = ({ userId, backendUrl }) => {
           </motion.button>
         </div>
 
-        {/* Error Banner */}
         <AnimatePresence>
           {error && (
             <motion.div
@@ -504,11 +234,9 @@ export const HabitCard: React.FC<HabitCardProps> = ({ userId, backendUrl }) => {
           )}
         </AnimatePresence>
 
-        {/* Active Habit Card */}
         <AnimatePresence mode="wait">
           {activeHabit && (
             <motion.div key={activeHabit.id} initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }}>
-              {/* Category Badge */}
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px' }}>
                 <span style={{
                   display: 'inline-flex', alignItems: 'center', gap: '5px',
@@ -520,7 +248,6 @@ export const HabitCard: React.FC<HabitCardProps> = ({ userId, backendUrl }) => {
                 </span>
               </div>
 
-              {/* Habit Title */}
               <h3 style={{ fontSize: '22px', fontWeight: 700, marginBottom: '6px', color: '#f0fdf4' }}>
                 {activeHabit.name}
               </h3>
@@ -534,28 +261,21 @@ export const HabitCard: React.FC<HabitCardProps> = ({ userId, backendUrl }) => {
                 </span>
               </div>
 
-              {/* Weekly Progress Tracker */}
               <div style={{ background: 'rgba(0,0,0,0.2)', borderRadius: '14px', padding: '16px', marginBottom: '20px' }}>
                 <p style={{ fontSize: '11px', color: '#9ca3af', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '12px' }}>
                   Weekly Progress
                 </p>
                 <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                   {WEEKDAYS.map((day, idx) => {
-                    // Map each weekday slot to a calendar day-of-week.
-                    // WEEKDAYS = ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'] → Mon=0…Sun=6
-                    // Check if any completion date in the array falls on this slot's weekday.
-                    const slotDayOfWeek = idx + 1 === 7 ? 0 : idx + 1; // Mon=1…Sat=6, Sun=0
+                    const slotDayOfWeek = idx + 1 === 7 ? 0 : idx + 1;
                     const isCompleted = completions.some(dateStr => {
                       const d = new Date(dateStr + 'T00:00:00');
                       return d.getDay() === slotDayOfWeek;
                     });
                     const todayJsDay = new Date().getDay();
                     const isToday = hasMounted && todayJsDay === slotDayOfWeek;
-                    // Highlight the most recently added completion for the pulse animation
                     const lastDate = completions[completions.length - 1];
-                    const isLastAdded = lastDate
-                      ? new Date(lastDate + 'T00:00:00').getDay() === slotDayOfWeek
-                      : false;
+                    const isLastAdded = lastDate ? new Date(lastDate + 'T00:00:00').getDay() === slotDayOfWeek : false;
                     return (
                       <div key={day} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '6px' }}>
                         <motion.div
@@ -583,7 +303,6 @@ export const HabitCard: React.FC<HabitCardProps> = ({ userId, backendUrl }) => {
                 </div>
               </div>
 
-              {/* Action Button */}
               <motion.button
                 whileHover={{ scale: checkedToday ? 1 : 1.02, y: checkedToday ? 0 : -1 }}
                 whileTap={{ scale: 0.97 }}
@@ -612,7 +331,6 @@ export const HabitCard: React.FC<HabitCardProps> = ({ userId, backendUrl }) => {
                 )}
               </motion.button>
 
-              {/* Stats Row */}
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '10px', marginBottom: '20px' }}>
                 {[
                   { label: 'This Week', value: `${completions.length}/7`, icon: <FlameIcon style={{ width: 18, height: 18, margin: '0 auto 4px auto', display: 'block', color: '#fb923c' }} /> },
@@ -635,7 +353,6 @@ export const HabitCard: React.FC<HabitCardProps> = ({ userId, backendUrl }) => {
                 ))}
               </div>
 
-              {/* Weekly CO₂ Chart */}
               <div style={{ background: 'rgba(0,0,0,0.15)', borderRadius: '12px', padding: '14px', marginBottom: '20px' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '10px' }}>
                   <TrendingUp size={14} color="#34d399" />
@@ -644,7 +361,6 @@ export const HabitCard: React.FC<HabitCardProps> = ({ userId, backendUrl }) => {
                 <CarbonChart weeklyData={weeklyHistory} />
               </div>
 
-              {/* AI Coach Section */}
               <div style={{
                 padding: '16px', borderRadius: '14px',
                 background: 'rgba(59,130,246,0.06)', border: '1px solid rgba(59,130,246,0.15)',
@@ -696,7 +412,6 @@ export const HabitCard: React.FC<HabitCardProps> = ({ userId, backendUrl }) => {
           )}
         </AnimatePresence>
 
-        {/* Habit Selector */}
         <div style={{ borderTop: '1px solid rgba(255,255,255,0.06)', paddingTop: '16px' }}>
           <label htmlFor="habit-selector" style={{ fontSize: '11px', color: '#9ca3af', textTransform: 'uppercase', letterSpacing: '0.08em', fontWeight: 600, display: 'block', marginBottom: '8px' }}>
             Switch Weekly Focus
@@ -722,7 +437,6 @@ export const HabitCard: React.FC<HabitCardProps> = ({ userId, backendUrl }) => {
         </div>
       </motion.div>
 
-      {/* Spin animation keyframe */}
       <style>{`
         @keyframes spin { to { transform: rotate(360deg); } }
         @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0; } }

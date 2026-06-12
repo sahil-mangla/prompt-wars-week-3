@@ -24,3 +24,7 @@ pnpm-debug.log*
 # OS files
 .DS_Store
 Thumbs.db
+
+# Scratch and build cache
+scratch/
+*.tsbuildinfo
