@@ -119,10 +119,19 @@ npm run dev
 Open `http://localhost:3000` to interact with the app.
 
 ### 3. Run Tests
-Execute the complete test suite covering routing integration, Gemini fail-fast and deterministic fallback, Firestore fallback with read-after-write verification, translation, and PII middleware:
+
+**Backend Tests (Jest)**
+Execute the complete backend integration and unit test suite (including happy-path Firestore mocks, in-memory failover, Gemini fail-fast fallback, translation, and PII redaction) with coverage tracking:
 ```bash
 cd backend
-npm test
+npm test -- --coverage
+```
+
+**Frontend Tests (Vitest)**
+Execute unit/integration tests for React components and hooks with coverage tracking:
+```bash
+cd frontend
+npm run test:coverage
 ```
 
 ---
@@ -148,8 +157,13 @@ PromptWars-week3/
 │   ├── api/
 │   │   ├── index.ts           # Express entry (serves backend router)
 │   │   ├── routes/
-│   │   │   ├── habits.ts      # Habit CRUD, CO₂ calculations, API routes
-│   │   │   └── health.ts      # Health check
+│   │   │   └── habits.ts      # Habit API route definitions
+│   │   ├── controllers/
+│   │   │   └── habitsController.ts # Route business logic handlers
+│   │   ├── repository/
+│   │   │   └── db.ts          # Firestore/Local DB access layer
+│   │   ├── data/
+│   │   │   └── habits.ts      # Curated habits dataset
 │   │   ├── services/
 │   │   │   ├── firebase.ts    # Firebase Admin SDK initialization service
 │   │   │   ├── gemini.ts      # Gemini AI coaching wrapper & rules engine
@@ -161,16 +175,32 @@ PromptWars-week3/
 │   │   ├── translation.test.ts# Translation service tests
 │   │   ├── security.test.ts   # PII redaction integration tests
 │   │   ├── routes.test.ts     # Express core routes integration tests
+│   │   ├── habitsController.test.ts # Core API handlers tests
+│   │   ├── firestore-success.test.ts # Successful Firestore workflow test
 │   │   ├── coach-fallback.test.ts # Gemini API failure fallback route test
 │   │   └── firestore-fallback.test.ts # Firestore read/write fallback route test
 │   └── package.json
 ├── frontend/
 │   ├── components/
-│   │   └── HabitCard.tsx      # Premium UX Component (Framer Motion + SVGs)
-│   └── src/app/
-│       ├── page.tsx           # Main Page
-│       ├── layout.tsx         # SEO and Metadata
-│       └── globals.css        # Core Design System
+│   │   ├── HabitCard.tsx      # Main dashboard container component
+│   │   ├── CarbonChart.tsx    # SVG line chart renderer
+│   │   ├── ProfileModal.tsx   # User profile form settings modal
+│   │   ├── icons/
+│   │   │   └── CustomIcons.tsx # SVG icons (flame, sprout, cloud, sparkle)
+│   │   ├── CarbonChart.test.tsx # Carbon chart unit test
+│   │   └── ProfileModal.test.tsx # Profile settings modal unit test
+│   ├── src/
+│   │   ├── app/
+│   │   │   ├── page.tsx       # Main page
+│   │   │   ├── layout.tsx     # SEO and metadata
+│   │   │   └── globals.css    # Core design system
+│   │   ├── hooks/
+│   │   │   ├── useTypewriter.ts # Custom typewriter animation hook
+│   │   │   └── useTypewriter.test.ts # Typewriter hook unit test
+│   │   └── lib/
+│   │       └── types.ts       # Shared TypeScript types
+│   ├── vitest.config.ts       # Vitest config file
+│   └── package.json
 ├── vercel.json                # Vercel deployment routes and build config
 └── README.md                  # Submission Documentation
 ```
