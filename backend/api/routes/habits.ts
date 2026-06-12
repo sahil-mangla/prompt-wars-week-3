@@ -23,6 +23,14 @@ try {
     const serviceAccountPath = path.join(__dirname, '../../service-account.json');
     if (fs.existsSync(serviceAccountPath)) {
       admin.initializeApp({ credential: admin.credential.cert(serviceAccountPath) });
+    } else if (process.env.FIREBASE_SERVICE_ACCOUNT) {
+      try {
+        const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);
+        admin.initializeApp({ credential: admin.credential.cert(serviceAccount) });
+      } catch (err: any) {
+        console.error('[Firestore] Failed to parse FIREBASE_SERVICE_ACCOUNT env var:', err.message || err);
+        admin.initializeApp();
+      }
     } else {
       admin.initializeApp();
     }
