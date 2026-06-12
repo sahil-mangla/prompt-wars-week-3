@@ -1,8 +1,6 @@
 import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
-import path from 'path';
-import fs from 'fs';
 import healthRouter from './routes/health';
 import habitsRouter from './routes/habits';
 import { piiRedactorMiddleware } from './middleware/security';
@@ -37,23 +35,6 @@ app.use(piiRedactorMiddleware);
 app.use('/', healthRouter);
 app.use('/api', habitsRouter);
 
-// ─── Static Frontend (Single-Container fallback) ───────────────────────────
-// Used only when serving from a single container (not Firebase Hosting + Cloud Run).
-const staticDir = path.join(__dirname, '../../public');
-if (fs.existsSync(staticDir)) {
-  app.use(express.static(staticDir));
-  // SPA fallback — return index.html for all non-API routes
-  app.get('*', (req, res, next) => {
-    if (req.path.startsWith('/api') || req.path === '/health') return next();
-    const indexPath = path.join(staticDir, 'index.html');
-    if (fs.existsSync(indexPath)) {
-      res.sendFile(indexPath);
-    } else {
-      next();
-    }
-  });
-  console.log(`[Static] Serving frontend from ${staticDir}`);
-}
 
 // ─── Global Error Handler ──────────────────────────────────────────────────
 app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {
