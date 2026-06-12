@@ -1,3 +1,6 @@
+import { GoogleGenerativeAI } from '@google/generative-ai';
+import { GeminiService, CoachContext } from '../api/services/gemini';
+
 const mockGenerateContent = jest.fn();
 const mockGetGenerativeModel = jest.fn().mockReturnValue({
   generateContent: mockGenerateContent,
@@ -5,22 +8,25 @@ const mockGetGenerativeModel = jest.fn().mockReturnValue({
 
 jest.mock('@google/generative-ai', () => {
   return {
-    GoogleGenerativeAI: jest.fn().mockImplementation(() => {
-      return {
-        getGenerativeModel: mockGetGenerativeModel,
-      };
-    }),
+    GoogleGenerativeAI: jest.fn(),
   };
 });
 
-import { GeminiService, CoachContext } from '../api/services/gemini';
-
 describe('GeminiService generateCoaching Tests', () => {
+  beforeAll(() => {
+    process.env.GEMINI_API_KEY = 'test-api-key';
+  });
+
   beforeEach(() => {
     jest.clearAllMocks();
     // Reset defaults for each test
     mockGetGenerativeModel.mockReturnValue({
       generateContent: mockGenerateContent,
+    });
+    jest.mocked(GoogleGenerativeAI).mockImplementation(() => {
+      return {
+        getGenerativeModel: mockGetGenerativeModel,
+      } as any;
     });
   });
 

@@ -17,9 +17,14 @@ export const SUPPORTED_LANGUAGES: Record<string, string> = {
 
 // ─── Gemini Translation Client ────────────────────────────────────────────
 let geminiClient: GoogleGenerativeAI | null = null;
-const geminiApiKey = process.env.GEMINI_API_KEY || '';
-if (geminiApiKey) {
-  geminiClient = new GoogleGenerativeAI(geminiApiKey);
+function getTranslationClient(): GoogleGenerativeAI | null {
+  if (!geminiClient) {
+    const geminiApiKey = process.env.GEMINI_API_KEY || '';
+    if (geminiApiKey) {
+      geminiClient = new GoogleGenerativeAI(geminiApiKey);
+    }
+  }
+  return geminiClient;
 }
 
 // ─── Cache to avoid redundant API calls ──────────────────────────────────
@@ -52,10 +57,11 @@ export async function translateText(
   const cacheKey = `${targetLang}:${hashString(text)}`;
   if (translationCache.has(cacheKey)) return translationCache.get(cacheKey)!;
 
-  if (geminiClient) {
+  const client = getTranslationClient();
+  if (client) {
     const modelName = 'gemini-2.5-flash';
     try {
-      const model = geminiClient.getGenerativeModel({ model: modelName });
+      const model = client.getGenerativeModel({ model: modelName });
       const langName = SUPPORTED_LANGUAGES[targetLang] ?? targetLang;
       const prompt = `Translate the following text to ${langName}. Return ONLY the translated text with no extra commentary or quotation marks.\n\n${text}`;
       const result = await model.generateContent(prompt);

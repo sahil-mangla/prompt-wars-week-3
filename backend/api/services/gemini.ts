@@ -107,8 +107,16 @@ export interface CoachContext {
 }
 
 // ─── Gemini AI Client ─────────────────────────────────────────────────────
-const apiKey = process.env.GEMINI_API_KEY || '';
-const ai = apiKey ? new GoogleGenerativeAI(apiKey) : null;
+let aiInstance: GoogleGenerativeAI | null = null;
+function getAiClient(): GoogleGenerativeAI | null {
+  if (!aiInstance) {
+    const apiKey = process.env.GEMINI_API_KEY || '';
+    if (apiKey) {
+      aiInstance = new GoogleGenerativeAI(apiKey);
+    }
+  }
+  return aiInstance;
+}
 
 
 /**
@@ -125,6 +133,7 @@ export class GeminiService {
    * Response is tagged with `source` field: 'gemini' | 'rules'.
    */
   static async generateCoaching(context: CoachContext): Promise<{ text: string; source: 'gemini' | 'rules' }> {
+    const ai = getAiClient();
     if (!ai) {
       console.warn('[GeminiService] No API key. Using deterministic fallback.');
       return { text: this.getFallbackCoaching(context), source: 'rules' };

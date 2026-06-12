@@ -1,3 +1,6 @@
+import { GoogleGenerativeAI } from '@google/generative-ai';
+import { translateText } from '../api/services/translation';
+
 const mockGenerateContent = jest.fn();
 const mockGetGenerativeModel = jest.fn().mockReturnValue({
   generateContent: mockGenerateContent,
@@ -5,21 +8,24 @@ const mockGetGenerativeModel = jest.fn().mockReturnValue({
 
 jest.mock('@google/generative-ai', () => {
   return {
-    GoogleGenerativeAI: jest.fn().mockImplementation(() => {
-      return {
-        getGenerativeModel: mockGetGenerativeModel,
-      };
-    }),
+    GoogleGenerativeAI: jest.fn(),
   };
 });
 
-import { translateText } from '../api/services/translation';
-
 describe('TranslationService Tests', () => {
+  beforeAll(() => {
+    process.env.GEMINI_API_KEY = 'test-api-key';
+  });
+
   beforeEach(() => {
     jest.clearAllMocks();
     mockGetGenerativeModel.mockReturnValue({
       generateContent: mockGenerateContent,
+    });
+    jest.mocked(GoogleGenerativeAI).mockImplementation(() => {
+      return {
+        getGenerativeModel: mockGetGenerativeModel,
+      } as any;
     });
   });
 
