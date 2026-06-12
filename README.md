@@ -1,6 +1,6 @@
 # 🌱 HabitLoop — AI Carbon Coach
 
-> **PromptWars Week 3 Submission** | One simple weekly habit. Real, measurable climate impact.
+One simple weekly habit. Real, measurable climate impact.
 
 [![Node.js](https://img.shields.io/badge/Node.js-20-green?logo=node.js)](https://nodejs.org)
 [![Next.js](https://img.shields.io/badge/Next.js-14-black?logo=next.js)](https://nextjs.org)
@@ -185,5 +185,3 @@ PromptWars-week3/
 └── README.md                  # Submission Documentation
 ```
 
----
-*Built with ❤️ using Gemini 2.5 Flash, Google Cloud, Next.js, and Framer Motion*
