@@ -87,6 +87,9 @@ function ensureLocalUser(userId: string): UserProfile {
 }
 
 // ─── Helper: Firestore with local fallback ────────────────────────────────
+// NOTE: We do NOT permanently disable Firebase on a single transient error.
+// Each operation tries Firestore independently so the process can recover
+// after a brief network hiccup without restarting.
 async function getOrFallback<T>(
   firestoreOp: () => Promise<T>,
   fallback: () => T
@@ -95,8 +98,8 @@ async function getOrFallback<T>(
     try {
       return await firestoreOp();
     } catch (e: any) {
-      console.warn('[Firestore] Op failed, using in-memory:', e.message);
-      isFirebaseInitialized = false;
+      console.warn('[Firestore] Op failed, using in-memory fallback for this request:', e.message);
+      // Do NOT flip isFirebaseInitialized to false — keep retrying on future requests.
     }
   }
   return fallback();
@@ -243,9 +246,19 @@ router.post('/habits/log', async (req: Request, res: Response) => {
     }
   );
 
-  const currentHabit = CURATED_HABITS.find(h => h.id === result.activeHabitId)!;
+  const currentHabit = CURATED_HABITS.find(h => h.id === result.activeHabitId);
+  if (!currentHabit) {
+    return res.status(500).json({ error: 'Active habit not found in catalogue' });
+  }
+
+  // Determine if this was a new log or a duplicate date
+  const alreadyLogged = !result.completions.includes(logDate)
+    ? false
+    : result.completions.indexOf(logDate) < result.completions.length;
+
   res.status(200).json({
-    message: 'Habit logged successfully',
+    message: alreadyLogged ? 'Already logged for today' : 'Habit logged successfully',
+    alreadyLogged,
     date: logDate,
     streakCount: result.streakCount,
     totalCo2Saved: result.totalCo2Saved,

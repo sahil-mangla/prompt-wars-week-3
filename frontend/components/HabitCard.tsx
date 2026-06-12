@@ -4,6 +4,44 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { motion, AnimatePresence, useMotionValue, useTransform } from 'framer-motion';
 import { Leaf, Zap, TrendingUp, Settings, ChevronDown, X, Check, Loader2, Globe, Home, MapPin, Utensils } from 'lucide-react';
 
+// ─── Custom Icons ─────────────────────────────────────────────────────────
+const FlameIcon = (props: React.SVGProps<SVGSVGElement>) => (
+  <svg viewBox="0 0 24 24" fill="currentColor" {...props}>
+    <path d="M12 2c-.44 0-.85.24-1.07.63-.67 1.18-1.44 2.37-2.18 3.56C7.56 8.13 6 10.45 6 13c0 3.31 2.69 6 6 6s6-2.69 6-6c0-2.55-1.56-4.87-2.75-6.81l-2.18-3.56c-.22-.39-.63-.63-1.07-.63zm0 13c-1.1 0-2-.9-2-2 0-1.33 1.5-2.75 2-3.25.5.5 2 1.92 2 3.25 0 1.1-.9 2-2 2z" />
+  </svg>
+);
+
+const SproutHandIcon = (props: React.SVGProps<SVGSVGElement>) => (
+  <svg viewBox="0 0 24 24" fill="currentColor" {...props}>
+    <path d="M20 14h-5.5c-.8 0-1.5-.7-1.5-1.5s.7-1.5 1.5-1.5H20c.8 0 1.5.7 1.5 1.5S20.8 14 20 14z" />
+    <path d="M2 15.5C2 14.7 2.7 14 3.5 14H11c.8 0 1.5.7 1.5 1.5v1c0 .8-.7 1.5-1.5 1.5H3.5C2.7 18 2 17.3 2 16.5v-1z" opacity="0.8" />
+    <path d="M12 9c-2 0-3.5-1.5-3.5-3.5 0 2 1.5 3.5 3.5 3.5z" />
+    <path d="M12 9c2 0 3.5-1.5 3.5-3.5 0 2-1.5 3.5-3.5 3.5z" />
+    <path d="M11 8.5h2V12h-2z" />
+  </svg>
+);
+
+const CO2CloudIcon = (props: React.SVGProps<SVGSVGElement>) => {
+  const id = React.useId();
+  return (
+    <svg viewBox="0 0 24 24" fill="currentColor" {...props}>
+      <defs>
+        <mask id={id}>
+          <rect width="24" height="24" fill="white" />
+          <text x="12" y="14.5" fill="black" fontSize="7.5" fontWeight="900" textAnchor="middle" fontFamily="system-ui, -apple-system, sans-serif">CO₂</text>
+        </mask>
+      </defs>
+      <path d="M19.35 10.04C18.67 6.59 15.64 4 12 4 9.11 4 6.6 5.64 5.35 8.04 2.34 8.36 0 10.91 0 14c0 3.31 2.69 6 6 6h13c2.76 0 5-2.24 5-5 0-2.64-2.05-4.78-4.65-4.96z" mask={`url(#${id})`} />
+    </svg>
+  );
+};
+
+const SparkleIcon = (props: React.SVGProps<SVGSVGElement>) => (
+  <svg viewBox="0 0 24 24" fill="currentColor" {...props}>
+    <path d="M12 2C12 7.5 16.5 12 22 12C16.5 12 12 16.5 12 22C12 16.5 7.5 12 2 12C7.5 12 12 7.5 12 2Z" />
+  </svg>
+);
+
 // ─── Types ────────────────────────────────────────────────────────────────
 interface Habit {
   id: string;
@@ -234,6 +272,10 @@ export const HabitCard: React.FC<HabitCardProps> = ({ userId, backendUrl }) => {
   const [totalSaved, setTotalSaved] = useState(0);
   const [lifetimeSaved, setLifetimeSaved] = useState(0);
   const [coaching, setCoaching] = useState('');
+  const coachingRef = useRef(coaching);
+  useEffect(() => {
+    coachingRef.current = coaching;
+  }, [coaching]);
   const [coachSource, setCoachSource] = useState<'gemini' | 'rules' | null>(null);
   const [loading, setLoading] = useState(false);
   const [coachLoading, setCoachLoading] = useState(false);
@@ -247,6 +289,7 @@ export const HabitCard: React.FC<HabitCardProps> = ({ userId, backendUrl }) => {
 
   const { displayed: typedCoaching, done: typingDone } = useTypewriter(coaching, 16);
   const today = new Date().toISOString().split('T')[0];
+  const isFirstMount = useRef(true);
 
   // ─── Fetch Languages
   useEffect(() => {
@@ -255,26 +298,6 @@ export const HabitCard: React.FC<HabitCardProps> = ({ userId, backendUrl }) => {
       .then(d => d.languages && setLanguages(d.languages))
       .catch(() => {});
   }, [backendUrl]);
-
-  // ─── Fetch Habits & Profile
-  useEffect(() => {
-    fetchHabits();
-    fetchProfile();
-  }, []);
-
-  const fetchHabits = useCallback(async () => {
-    setError('');
-    try {
-      const res = await fetch(`${backendUrl}/api/habits?lang=${profile.language}`);
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Failed to fetch habits');
-      setHabits(data.habits || []);
-      if (data.habits?.length) selectHabit(data.habits[0].id);
-    } catch (e: any) {
-      setError('Cannot connect to backend. Make sure the server is running on port 5001.');
-    }
-  }, [backendUrl, profile.language]);
-
   const fetchProfile = useCallback(async () => {
     try {
       const res = await fetch(`${backendUrl}/api/user/profile/${userId}`);
@@ -306,36 +329,28 @@ export const HabitCard: React.FC<HabitCardProps> = ({ userId, backendUrl }) => {
     } finally { setLoading(false); }
   }, [backendUrl, userId]);
 
-  const logCompletion = useCallback(async () => {
-    if (!activeHabit || checkedToday) return;
-    setLoading(true);
+  const fetchHabits = useCallback(async () => {
     setError('');
     try {
-      const res = await fetch(`${backendUrl}/api/habits/log`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ userId, date: today }),
-      });
+      const res = await fetch(`${backendUrl}/api/habits?lang=${profile.language}`);
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error);
-      setCompletions(data.completionsThisWeek || []);
-      setStreak(data.streakCount);
-      setTotalSaved(data.totalCo2Saved);
-      setCheckedToday(true);
-      setJustChecked(true);
-      setTimeout(() => setJustChecked(false), 1500);
-      // Update weekly history chart
-      const dayIndex = new Date().getDay();
-      setWeeklyHistory(prev => {
-        const updated = [...prev];
-        updated[dayIndex] = (updated[dayIndex] || 0) + (activeHabit.co2SavedPerDay);
-        return updated;
-      });
-      // Auto-fetch coaching
-      getCoachInsights();
+      if (!res.ok) throw new Error(data.error || 'Failed to fetch habits');
+      setHabits(data.habits || []);
+      if (data.habits?.length) {
+        setActiveHabit(prevActive => {
+          if (prevActive) {
+            const updated = data.habits.find((h: any) => h.id === prevActive.id);
+            return updated || data.habits[0];
+          }
+          selectHabit(data.habits[0].id);
+          return null;
+        });
+      }
     } catch (e: any) {
-      setError(e.message || 'Error logging completion');
-    } finally { setLoading(false); }
-  }, [backendUrl, userId, activeHabit, checkedToday, today]);
+      setError('Cannot connect to backend. Please try refreshing the page.');
+    }
+  }, [backendUrl, profile.language, selectHabit]);
+
 
   const getCoachInsights = useCallback(async () => {
     setCoachLoading(true);
@@ -355,6 +370,44 @@ export const HabitCard: React.FC<HabitCardProps> = ({ userId, backendUrl }) => {
     } finally { setCoachLoading(false); }
   }, [backendUrl, userId]);
 
+  // Stable ref so logCompletion can call getCoachInsights without a circular dep
+  const getCoachInsightsRef = useRef(getCoachInsights);
+  useEffect(() => { getCoachInsightsRef.current = getCoachInsights; }, [getCoachInsights]);
+
+  const logCompletion = useCallback(async () => {
+    if (!activeHabit || checkedToday) return;
+    setLoading(true);
+    setError('');
+    try {
+      const res = await fetch(`${backendUrl}/api/habits/log`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId, date: today }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error);
+      setCompletions(data.completionsThisWeek || []);
+      setStreak(data.streakCount);
+      setTotalSaved(data.totalCo2Saved);
+      setCheckedToday(true);
+      setJustChecked(true);
+      setTimeout(() => setJustChecked(false), 1500);
+      // Update weekly history chart
+      // getDay() returns 0=Sun…6=Sat; WEEKDAYS is Mon(0)…Sun(6)
+      // Convert: Mon→0, Tue→1, …, Sun→6
+      const jsDay = new Date().getDay(); // 0=Sun, 1=Mon, …
+      const chartIndex = jsDay === 0 ? 6 : jsDay - 1; // Sun→6, Mon→0, …
+      setWeeklyHistory(prev => {
+        const updated = [...prev];
+        updated[chartIndex] = (updated[chartIndex] || 0) + (activeHabit.co2SavedPerDay);
+        return updated;
+      });
+      // Auto-fetch coaching via stable ref (avoids circular dep)
+      getCoachInsightsRef.current();
+    } catch (e: any) {
+      setError(e.message || 'Error logging completion');
+    } finally { setLoading(false); }
+  }, [backendUrl, userId, activeHabit, checkedToday, today]);
+
   const saveProfile = useCallback(async (newProfile: UserProfile) => {
     try {
       await fetch(`${backendUrl}/api/user/profile`, {
@@ -364,6 +417,25 @@ export const HabitCard: React.FC<HabitCardProps> = ({ userId, backendUrl }) => {
       setProfile(newProfile);
     } catch {}
   }, [backendUrl, userId]);
+  // ─── Initial Load of Profile
+  useEffect(() => {
+    fetchProfile();
+  }, [fetchProfile]);
+
+  // ─── Handle Language changes
+  useEffect(() => {
+    if (isFirstMount.current) {
+      isFirstMount.current = false;
+      fetchHabits();
+      return;
+    }
+    fetchHabits();
+    // Only refresh coaching translation if coaching already exists;
+    // avoids a spurious API call on first mount before any check-in.
+    if (coachingRef.current) {
+      getCoachInsights();
+    }
+  }, [profile.language, fetchHabits, getCoachInsights]);
 
   // ─── Render ────────────────────────────────────────────────────────────
   return (
@@ -464,8 +536,21 @@ export const HabitCard: React.FC<HabitCardProps> = ({ userId, backendUrl }) => {
                 </p>
                 <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                   {WEEKDAYS.map((day, idx) => {
-                    const isCompleted = completions.length > idx;
-                    const isToday = new Date().getDay() === (idx + 1) % 7;
+                    // Map each weekday slot to a calendar day-of-week.
+                    // WEEKDAYS = ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'] → Mon=0…Sun=6
+                    // Check if any completion date in the array falls on this slot's weekday.
+                    const slotDayOfWeek = idx + 1 === 7 ? 0 : idx + 1; // Mon=1…Sat=6, Sun=0
+                    const isCompleted = completions.some(dateStr => {
+                      const d = new Date(dateStr + 'T00:00:00');
+                      return d.getDay() === slotDayOfWeek;
+                    });
+                    const todayJsDay = new Date().getDay();
+                    const isToday = todayJsDay === slotDayOfWeek;
+                    // Highlight the most recently added completion for the pulse animation
+                    const lastDate = completions[completions.length - 1];
+                    const isLastAdded = lastDate
+                      ? new Date(lastDate + 'T00:00:00').getDay() === slotDayOfWeek
+                      : false;
                     return (
                       <div key={day} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '6px' }}>
                         <motion.div
@@ -473,7 +558,7 @@ export const HabitCard: React.FC<HabitCardProps> = ({ userId, backendUrl }) => {
                           animate={{
                             backgroundColor: isCompleted ? '#10b981' : 'rgba(255,255,255,0.04)',
                             borderColor: isCompleted ? '#34d399' : isToday ? 'rgba(52,211,153,0.4)' : 'rgba(255,255,255,0.08)',
-                            scale: isCompleted && justChecked && idx === completions.length - 1 ? [1, 1.3, 1] : 1,
+                            scale: isCompleted && justChecked && isLastAdded ? [1, 1.3, 1] : 1,
                           }}
                           transition={{ duration: 0.3 }}
                           style={{
@@ -525,9 +610,9 @@ export const HabitCard: React.FC<HabitCardProps> = ({ userId, backendUrl }) => {
               {/* Stats Row */}
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '10px', marginBottom: '20px' }}>
                 {[
-                  { label: 'Completions', value: streak, icon: '🔥' },
-                  { label: 'Saved This Week', value: `${totalSaved.toFixed(1)} kg`, icon: '🌿' },
-                  { label: 'Lifetime Saved', value: `${lifetimeSaved.toFixed(1)} kg`, icon: '🌍' },
+                  { label: 'This Week', value: `${completions.length}/7`, icon: <FlameIcon style={{ width: 18, height: 18, margin: '0 auto 4px auto', display: 'block', color: '#fb923c' }} /> },
+                  { label: 'CO₂ This Week', value: `${totalSaved.toFixed(1)} kg`, icon: <CO2CloudIcon style={{ width: 18, height: 18, margin: '0 auto 4px auto', display: 'block', color: '#34d399' }} /> },
+                  { label: 'Lifetime Saved', value: `${lifetimeSaved.toFixed(1)} kg`, icon: <SproutHandIcon style={{ width: 18, height: 18, margin: '0 auto 4px auto', display: 'block', color: '#60a5fa' }} /> },
                 ].map(stat => (
                   <motion.div
                     key={stat.label}
@@ -538,7 +623,7 @@ export const HabitCard: React.FC<HabitCardProps> = ({ userId, backendUrl }) => {
                       textAlign: 'center',
                     }}
                   >
-                    <div style={{ fontSize: '16px', marginBottom: '4px' }}>{stat.icon}</div>
+                    {stat.icon}
                     <div style={{ fontSize: '16px', fontWeight: 700, color: '#fff' }}>{stat.value}</div>
                     <div style={{ fontSize: '10px', color: '#6b7280', marginTop: '2px' }}>{stat.label}</div>
                   </motion.div>
@@ -562,7 +647,7 @@ export const HabitCard: React.FC<HabitCardProps> = ({ userId, backendUrl }) => {
               }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px', color: '#60a5fa', fontWeight: 600 }}>
-                    <span style={{ fontSize: '16px' }}>🤖</span> Carbon Coach
+                    <SparkleIcon style={{ width: 16, height: 16, color: '#60a5fa' }} /> Carbon Coach
                     {coachSource && (
                       <span style={{
                         fontSize: '10px', padding: '2px 7px', borderRadius: '20px', fontWeight: 500,
@@ -578,6 +663,7 @@ export const HabitCard: React.FC<HabitCardProps> = ({ userId, backendUrl }) => {
                     <motion.button
                       whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}
                       onClick={getCoachInsights}
+                      aria-label="Refresh AI carbon coach insights"
                       style={{ fontSize: '11px', color: '#60a5fa', background: 'none', border: 'none', cursor: 'pointer', fontWeight: 500 }}
                     >
                       Refresh ↺

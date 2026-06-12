@@ -13,8 +13,16 @@ const app = express();
 const PORT = process.env.PORT || 5001;
 
 // ─── CORS ──────────────────────────────────────────────────────────────────
+// In production (Firebase Hosting + Cloud Run): allow the Firebase Hosting URL.
+// Set FRONTEND_URL env var on Cloud Run to e.g. https://your-project.web.app
+// In development: allow all origins.
+const allowedOrigin =
+  process.env.NODE_ENV === 'production'
+    ? process.env.FRONTEND_URL || false
+    : '*';
+
 app.use(cors({
-  origin: process.env.NODE_ENV === 'production' ? false : '*', // no CORS in prod (same origin)
+  origin: allowedOrigin,
   methods: ['GET', 'POST', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization'],
 }));
@@ -29,7 +37,8 @@ app.use(piiRedactorMiddleware);
 app.use('/', healthRouter);
 app.use('/api', habitsRouter);
 
-// ─── Static Frontend (Single-Container Production) ─────────────────────────
+// ─── Static Frontend (Single-Container fallback) ───────────────────────────
+// Used only when serving from a single container (not Firebase Hosting + Cloud Run).
 const staticDir = path.join(__dirname, '../../public');
 if (fs.existsSync(staticDir)) {
   app.use(express.static(staticDir));
@@ -57,6 +66,7 @@ if (process.env.NODE_ENV !== 'test') {
     console.log('========================================');
     console.log(` HabitLoop API Running on Port ${PORT}`);
     console.log(` Health: http://localhost:${PORT}/health`);
+    console.log(` CORS Origin: ${allowedOrigin || 'same-origin'}`);
     console.log('========================================');
   });
 }
