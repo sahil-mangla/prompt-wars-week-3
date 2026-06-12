@@ -6,7 +6,7 @@ One simple weekly habit. Real, measurable climate impact.
 [![Next.js](https://img.shields.io/badge/Next.js-14-black?logo=next.js)](https://nextjs.org)
 [![Gemini](https://img.shields.io/badge/Gemini-2.5_Flash-blue?logo=google)](https://ai.google.dev)
 [![Firebase](https://img.shields.io/badge/Firebase-Firestore-orange?logo=firebase)](https://firebase.google.com)
-[![Docker](https://img.shields.io/badge/Docker-Single_Container-blue?logo=docker)](https://docker.com)
+[![Vercel](https://img.shields.io/badge/Vercel-Deployment-black?logo=vercel)](https://vercel.com)
 
 ---
 
@@ -34,19 +34,15 @@ The Gemini prompt is dynamically injected with rich local state data:
 *   **Home Context:** Housing type and diet style.
 *   **Performance Metrics:** Weekly completion rate, active habit type, and total lifetime CO₂ saved.
 
-### 4. Deep Google Integration
-We leverage the Google Cloud and Firebase ecosystem for production robustness:
+### 4. Google & Firebase Integration
+We leverage the Google Gemini and Firebase ecosystem for core functionalities:
 *   **Gemini 2.5 Flash:** Provides fast, high-quality, and cost-efficient coaching and translations.
-*   **Google Cloud Run:** Hosts the entire application in a single container.
-*   **Google Cloud Build:** Manages secure, serverless container compilation.
-*   **Google Secret Manager:** Secures the Gemini API keys and Firebase service account key.
 *   **Cloud Firestore:** Real-time data storage with local in-memory fallback on network failure.
 
 ### 5. Security-First Design
 Security is built into the architecture:
 *   **PII Shield Middleware:** Scans and redacts emails, phone numbers, and payment cards from request payloads before sending any data to the AI model.
-*   **Zero Hardcoded Secrets:** Mounts production service accounts as a secure volume in Cloud Run using Secret Manager, pointing `GOOGLE_APPLICATION_CREDENTIALS` to the runtime mount.
-*   **Non-Root Executable:** Docker image runs under a dedicated, low-privilege `habitloop` user (UID 1001).
+*   **Zero Hardcoded Secrets:** Production credentials and API keys are stored securely using Vercel Environment Variables (`FIREBASE_SERVICE_ACCOUNT` and `GEMINI_API_KEY`), avoiding any local files or hardcoding.
 
 ### 6. Premium UX
 Designed to capture attention immediately:
@@ -68,16 +64,13 @@ Designed to capture attention immediately:
 
 ```
 ┌────────────────────────────────────────────────────────┐
-│                    Single Container                    │
+│                    Vercel Platform                     │
 │                                                        │
 │  ┌──────────────────────────────────────────────────┐  │
-│  │            Express.js API (Port 8080)            │  │
-│  │                                                  │  │
-│  │  GET  /health                                    │  │
-│  │  GET  /api/habits (serves translated catalogue)  │  │
-│  │  POST /api/habits/log                            │  │
-│  │  POST /api/habits/coach                          │  │
-│  │  GET  /* (serves static Next.js frontend)        │  │
+│  │                  Vercel Edge                     │  │
+│  │  Static Paths (/) ─────> Next.js Static Build    │  │
+│  │  API Paths (/api) ─────> Vercel Serverless       │  │
+│  │                          (Express Backend)       │  │
 │  └──────────────────────────┬───────────────────────┘  │
 │                             │                          │
 │                ┌────────────┴──────────┐               │
@@ -126,7 +119,7 @@ npm run dev
 Open `http://localhost:3000` to interact with the app.
 
 ### 3. Run Tests
-Execute the unit tests covering CRUD routes, CO₂ math, PII security middleware, translation, and fail-fast fallback behavior:
+Execute the complete test suite covering routing integration, Gemini fail-fast and deterministic fallback, Firestore fallback with read-after-write verification, translation, and PII middleware:
 ```bash
 cd backend
 npm test
@@ -134,20 +127,16 @@ npm test
 
 ---
 
-## 🚀 Automated Production Deployment
+## 🚀 Production Deployment
 
-To deploy the application securely to **Google Cloud Run** using **GCP Secret Manager** (which prevents secrets and `service-account.json` from being baked into the Docker image):
+The application is deployed on **Vercel** with the configuration defined in [vercel.json](file:///Users/sahilmangla/PromptWars-week3/vercel.json).
 
-1. Make sure you are authenticated with the Google Cloud CLI:
-   ```bash
-   gcloud auth login
-   ```
-2. Run the automated deployment script:
-   ```bash
-   ./deploy.sh
-   ```
-
-The script automatically sets up the Secrets in GCP Secret Manager, uploads your local service account credentials, builds the Docker image with Google Cloud Build (observing the `.dockerignore` file), and deploys the Cloud Run service with secure runtime volume mounts.
+### Deployment Steps:
+1. Set up the project on Vercel importing this repository.
+2. Add the following environment variables in the Vercel Project Settings:
+   * `GEMINI_API_KEY`: Your Google Gemini API Key.
+   * `FIREBASE_SERVICE_ACCOUNT`: The JSON service account credentials for Firebase Admin SDK access.
+3. Deploying to Vercel automatically compiles the Next.js static files and routes all `/api/*` and `/health` requests directly to the serverless Express function.
 
 ---
 
@@ -157,11 +146,12 @@ The script automatically sets up the Secrets in GCP Secret Manager, uploads your
 PromptWars-week3/
 ├── backend/
 │   ├── api/
-│   │   ├── index.ts           # Express entry (serves static + API)
+│   │   ├── index.ts           # Express entry (serves backend router)
 │   │   ├── routes/
 │   │   │   ├── habits.ts      # Habit CRUD, CO₂ calculations, API routes
 │   │   │   └── health.ts      # Health check
 │   │   ├── services/
+│   │   │   ├── firebase.ts    # Firebase Admin SDK initialization service
 │   │   │   ├── gemini.ts      # Gemini AI coaching wrapper & rules engine
 │   │   │   └── translation.ts # Translation service
 │   │   └── middleware/
@@ -169,7 +159,10 @@ PromptWars-week3/
 │   ├── __tests__/
 │   │   ├── gemini.test.ts     # Fail-fast and rules engine tests
 │   │   ├── translation.test.ts# Translation service tests
-│   │   └── security.test.ts   # PII redaction integration tests
+│   │   ├── security.test.ts   # PII redaction integration tests
+│   │   ├── routes.test.ts     # Express core routes integration tests
+│   │   ├── coach-fallback.test.ts # Gemini API failure fallback route test
+│   │   └── firestore-fallback.test.ts # Firestore read/write fallback route test
 │   └── package.json
 ├── frontend/
 │   ├── components/
@@ -178,10 +171,6 @@ PromptWars-week3/
 │       ├── page.tsx           # Main Page
 │       ├── layout.tsx         # SEO and Metadata
 │       └── globals.css        # Core Design System
-├── Dockerfile                 # Single-container production Dockerfile
-├── .dockerignore              # Prevents local secrets from leaking to images
-├── firestore.rules            # Firestore security rules
-├── deploy.sh                  # Automated Cloud Run deployment script
+├── vercel.json                # Vercel deployment routes and build config
 └── README.md                  # Submission Documentation
 ```
-
