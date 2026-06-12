@@ -265,6 +265,11 @@ const selectStyle: React.CSSProperties = {
 
 // ─── Main HabitCard Component ─────────────────────────────────────────────
 export const HabitCard: React.FC<HabitCardProps> = ({ userId, backendUrl }) => {
+  const [hasMounted, setHasMounted] = useState(false);
+  useEffect(() => {
+    setHasMounted(true);
+  }, []);
+
   const [habits, setHabits] = useState<Habit[]>([]);
   const [activeHabit, setActiveHabit] = useState<Habit | null>(null);
   const [completions, setCompletions] = useState<string[]>([]);
@@ -545,7 +550,7 @@ export const HabitCard: React.FC<HabitCardProps> = ({ userId, backendUrl }) => {
                       return d.getDay() === slotDayOfWeek;
                     });
                     const todayJsDay = new Date().getDay();
-                    const isToday = todayJsDay === slotDayOfWeek;
+                    const isToday = hasMounted && todayJsDay === slotDayOfWeek;
                     // Highlight the most recently added completion for the pulse animation
                     const lastDate = completions[completions.length - 1];
                     const isLastAdded = lastDate
@@ -676,7 +681,7 @@ export const HabitCard: React.FC<HabitCardProps> = ({ userId, backendUrl }) => {
                     <Loader2 size={14} color="#60a5fa" style={{ animation: 'spin 1s linear infinite' }} />
                     <span style={{ fontSize: '13px', color: '#9ca3af' }}>Coach is analyzing your progress…</span>
                   </div>
-                ) : coaching ? (
+                ) : (hasMounted && coaching) ? (
                   <p style={{ fontSize: '13px', lineHeight: '1.7', color: '#d1d5db', whiteSpace: 'pre-wrap' }}>
                     {typedCoaching}
                     {!typingDone && <span style={{ animation: 'pulse 1s infinite', borderRight: '2px solid #60a5fa', marginLeft: '2px' }} />}
